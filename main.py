@@ -91,11 +91,11 @@ for rep in range(repetitions):
 D_in = nedges + nedges + nedges + nedges
 D_out = 1
 specs = [
-    ("relu",nedges*5),
-("softmax",nedges*5),
-("relu",nedges*5),
-("softmax",nedges*5),
-("relu",nedges*5),
+    ("sigmoid",nedges*5),
+("sigmoid",nedges*5),
+("sigmoid",nedges*5),
+("sigmoid",nedges*5),
+("sigmoid",nedges*5),
 #("relu",nnodes),
 #("relu",nnodes),
    # ("softmax",nnodes),
@@ -144,14 +144,14 @@ odinalgo = odin(environment_specs,
                  seed,
                  stop_function,
                  repetitions)
-
-stats = odinalgo.pretrain(nepisodes = nepisodes,
-               display = (True, 10),
-               randomness0 = 1,
-               batchsize = 15,
-               maximumiter = nnodes,
-               steps = 1
-               )
+#
+# stats = odinalgo.pretrain(nepisodes = nepisodes,
+#                display = (True, 10),
+#                randomness0 = 1,
+#                batchsize = 15,
+#                maximumiter = nnodes,
+#                steps = 1
+#                )
 stats = odinalgo.solve(nepisodes = nepisodes,
                display = (True, 10),
                randomness0 = 1,

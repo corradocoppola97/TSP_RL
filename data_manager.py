@@ -23,18 +23,13 @@ class data_manager():
             self._memoryx.append(instancex)
             self._memoryy.append(instancey)
         else:
-            magnitude = math.floor(self._length/self._stacklength)
-            ind = self._length - self._stacklength*magnitude
+            ind = self._length % self._stacklength
             self._memoryx[ind] = instancex
             self._memoryy[ind] = instancey
 
 
     def get_batch(self, batchsize, last = None):
-        if batchsize > self._length:
-            batchsize = self._length
-        elif batchsize > self._stacklength:
-            batchsize = self._stacklength
-
+        batchsize = min(self._length, batchsize, self._stacklength)
         if last is None:
             indices = random.sample(range(min(self._stacklength, self._length)), batchsize)
         else:
