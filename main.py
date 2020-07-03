@@ -91,11 +91,13 @@ for rep in range(repetitions):
 D_in = nedges + nedges + nedges + nedges
 D_out = 1
 specs = [
-    ("sigmoid",nedges*5),
-("sigmoid",nedges*5),
-("sigmoid",nedges*5),
-("sigmoid",nedges*5),
-("sigmoid",nedges*5),
+    ("relu",nedges*10),
+    ("relu", nedges * 10),
+    ("relu", nedges * 10),
+# ("sigmoid",nedges*5),
+# ("sigmoid",nedges*5),
+# ("sigmoid",nedges*5),
+# ("sigmoid",nedges*5),
 #("relu",nnodes),
 #("relu",nnodes),
    # ("softmax",nnodes),
@@ -128,7 +130,7 @@ environment_specs = {
     EnvSpecs.edges : edges.copy(),
     EnvSpecs.costs : costs.copy(),
     EnvSpecs.prize : 0,
-    EnvSpecs.penalty : -1000,
+    EnvSpecs.penalty : -10000,
     EnvSpecs.finalpoint : nnodes-1,
     EnvSpecs.startingpoint : 0
 }

@@ -240,12 +240,13 @@ class odin():
                     randomness = 0.02
                 else:
                     randomness = 0.002
-            if episode % 5000 == 0 and episode > 1:
-                scope = scope*theta
-                self._optspecs["lr"] = self._optspecs["lr"]*scope
-                self._model.set_optimizer(name=self._optimizer, options=self._optspecs)
+            # if episode % 5000 == 0 and episode > 1:
+            #     scope = scope*theta
+            #     self._optspecs["lr"] = self._optspecs["lr"]*scope
+            #     self._model.set_optimizer(name=self._optimizer, options=self._optspecs)
             if display and episode % dispfreq == 0:
                 print("Ep."+str(episode)+")")
+                print("_memory ", self._data.size())
                 print(randomness)
 
             feasible = False

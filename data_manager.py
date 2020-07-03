@@ -47,6 +47,9 @@ class data_manager():
 
         if newlength is not None:
             self._stacklength = newlength
+    def size(self):
+        return self._length/self._stacklength
+
 
 
 
