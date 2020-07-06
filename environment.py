@@ -43,7 +43,10 @@ class environment():
         pass
     def set_linear_reward(self, c):
         pass
-    def instances(self,st, mask):
+
+    def instances(self, st, mask):
+        pass
+    def last_states(self):
         pass
     def output(self,st, at1):
         pass
@@ -89,7 +92,14 @@ class min_path(environment):
         self._insts = insts
         return insts
 
-    def output(self,st, at1):
+    def last_states(self):
+        return self._last_states
+
+    def output(self,st, at1, last_states=None, insts = None):
+        if last_states is not None:
+            self._last_states = last_states
+        if insts is not None:
+            self._insts = insts
         visited = [0]
         for i in range(len(st)):
             if st[i] >= 1e-8:

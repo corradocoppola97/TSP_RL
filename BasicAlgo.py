@@ -70,6 +70,7 @@ class basicalgo():
             feasible = False
             sol = []
             insts = self.env.instances(st, mask)
+            last_states = self.env.last_states()
             for t in range(maximumiter):
                 if random.random() <= eps:
                     ract = random.randint(0, len(mask) - 1)
@@ -78,8 +79,7 @@ class basicalgo():
                     qvalues = {m: self._model.coremdl(torch.as_tensor(insts[m])) for m in mask}
                     at1 = max(qvalues, key=qvalues.get)
                 sol.append(at1)
-                self.env.instances(st, mask)
-                st1, rt, final, mask, feasible, inst = self.env.output(st, at1)  # save computations by storing the last instances computed
+                st1, rt, final, mask, feasible, inst = self.env.output(st, at1, last_states, insts)  # save computations by storing the last instances computed
                 # st1, (rt, rs), final, neighbors, feasible = self.env.response(st, at1)
 
                 rt0 = rt
@@ -87,6 +87,7 @@ class basicalgo():
                     RM += rt0 - self.env.prize()
                 else:
                     insts = self.env.instances(st1, mask)
+                    last_states = self.env.last_states()
                     qvalues = {m: coremdl0(torch.as_tensor(insts[m])) for m in mask}
                     atnext = max(qvalues, key=qvalues.get)
                     qnext = qvalues[atnext]

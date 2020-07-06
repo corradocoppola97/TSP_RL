@@ -83,24 +83,11 @@ D_out = 1
 specs = [
     ("relu",nedges*4),
     ("relu", nedges*2),
-    ("relu", nnodes),
-("relu", nnodes),
-#("relu", nnodes),
-("relu", nnodes),
-("relu", nedges),
-# ("sigmoid",nedges*5),
-# ("sigmoid",nedges*5),
-# ("sigmoid",nedges*5),
-# ("sigmoid",nedges*5),
-#("relu",nnodes),
-#("relu",nnodes),
-   # ("softmax",nnodes),
-     #("relu",round(nedges/3)),
-   #("relu",nedges),
-#("relu",nedges),
-#("softmax",nnodes),
-    #("relu",nnodes),
-    #("logsigmoid", nedges),
+    #("relu", nnodes),
+    #("relu", nnodes),
+    #("relu", nnodes),
+    #("relu", nnodes),
+    ("relu", nedges),
     ("linear", D_out)
 ]
 criterion = "mse"
@@ -109,7 +96,7 @@ optspecs = { "lr" : 1e-3}#, "momentum": 0, "nesterov": False }
 
 # lauch the algorithm with many repetitions
 memorylength = 10000
-nepisodes = 10
+nepisodes = 1000
 memorypath = None
 stop_function = None
 
@@ -148,13 +135,13 @@ stats = balgo.solve(nepisodes = nepisodes,
 
 
 #print(stats)
-final_objectives = [stat["final_objective"] if stat["is_final"] == 1 else -200 for stat in stats ]
+final_objectives = [stat["final_objective"] if stat["is_final"] == 1 else 0 for stat in stats ]
 plotbasevals = [[-baseval for i in range(len( final_objectives))] for baseval in basevals ]
 
 
 for plotbase in plotbasevals:
     plt.plot(plotbase)
-plt.plot(final_objectives)
+plt.plot(final_objectives,'o')
 plt.show()
 plt.cla()
 
