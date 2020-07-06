@@ -228,7 +228,7 @@ class GraphCNN(nn.Module):
         #self.mA[2] = True
         #self.mA[4] = True
         self.mA[6] = True
-        #self.mA[8] = True
+        self.mA[8] = True
         #self.mA[10] = True
         #self.mA[self.depth - 3] = True
         #self.mA[self.depth - 1] = True
@@ -269,7 +269,7 @@ class GraphCNN(nn.Module):
 
 class Model():
     def __init__(self, D_in, specs,  seed = None, edges = None, nnodes = None):
-        torch.set_num_threads(1)
+        #torch.set_num_threads(1)
         self.specs = specs
         if edges is None:
             self.coremdl   = CoreModel(D_in, specs)

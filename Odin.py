@@ -22,8 +22,8 @@ class odin():
                  seed = None,
                  stop_function = None,
                  repetitions = None): #todo implement stopping functions
-        torch.set_num_threads(1)
-        self._model = Model(D_in, modelspecs, seed)#, environment_specs[EnvSpecs.edges], environment_specs[EnvSpecs.finalpoint]+1)
+        #torch.set_num_threads(1)
+        self._model = Model(D_in, modelspecs, seed, environment_specs[EnvSpecs.edges], environment_specs[EnvSpecs.finalpoint]+1)
         self._model.wake_Odin()
         self._model.set_loss(criterion)
         self._optimizer = optimizer
@@ -195,6 +195,9 @@ class odin():
 
 
 
+
+
+
     def solve(self, nepisodes = 100, noptsteps=1, randomness0 = 1, maximumiter=100, batchsize=5, display=(False,0), steps=3):
 
         st0, neighbors0 = self._buildenvironment(self._envspecs)
@@ -251,7 +254,7 @@ class odin():
 
             feasible = False
             sol = []
-            appliedmaximumiter = max(math.ceil(episode/15)+2,maximumiter)
+            appliedmaximumiter = maximumiter#max(math.ceil(episode/15)+2,maximumiter)
 
 
             for t in range(appliedmaximumiter):
@@ -336,29 +339,36 @@ class odin():
                 ist = self.instance(st, at1, st1)
 
                 if finalp or final:
-                    self._data.add(ist, [1000 + (RM -rt0 + rt)])
+                    self._data.add(ist, [2000 + (RM -rt0 + rt)])
                 else:
                     self._data.add(ist, [rt + qnextp])
 
+                xx, yy = self._data.get_batch(batchsize, last=None)
+                xx = torch.as_tensor(xx)
+                yy = torch.as_tensor(yy)
+                if odecheck:
+                    self._model.long_update(xx, yy, noptsteps, self._cmodel0)
+                    # xx, yy = self._data.get_batch(batchsize)
+                    # xx = torch.as_tensor(xx)
+                    # yy = torch.as_tensor(yy)
+                    # self._model.long_update_player(xx, yy, noptsteps, self._cmodel0)
+                else:
+                    if len(stabilizers) > 2000:  # todo look what you've done
+                        self._model.long_update(xx, yy, noptsteps, ccmod=stabilizers, scope=scope)
+                    else:
+                        self._model.long_update(xx, yy, noptsteps, scope=scope)
 
                 if final or self._stop_function(0): #todo correct for stop functions
                     break
                 else:
-                    xx, yy = self._data.get_batch(batchsize, last=None)
-                    xx = torch.as_tensor(xx)
-                    yy = torch.as_tensor(yy)
-                    if odecheck:
-                        self._model.long_update(xx, yy, noptsteps, self._cmodel0)
-                        # xx, yy = self._data.get_batch(batchsize)
-                        # xx = torch.as_tensor(xx)
-                        # yy = torch.as_tensor(yy)
-                        # self._model.long_update_player(xx, yy, noptsteps, self._cmodel0)
-                    else:
-                        if len(stabilizers) > 2000:#todo look what you've done
-                            self._model.long_update(xx, yy, noptsteps, ccmod = stabilizers, scope = scope)
-                        else:
-                            self._model.long_update(xx, yy, noptsteps, scope=scope)
                     st = st1
+
+            if display and episode % dispfreq == 0:
+                xx, yy = self._data.get_batch(1000, last=1)
+                xx = torch.as_tensor(xx)
+                yy = torch.as_tensor(yy)
+                y_pred = self._model.coremdl(xx)
+                print("LOSS____>", self._model.criterion(y_pred, yy).item())
             if not final and feasible:
                 feasible = False
 
@@ -409,4 +419,80 @@ class odin():
         self.stabilizers = stabilizers
 
 
+        return stats
+
+
+    def pretrain(self, nepisodes = 100, noptsteps=1, randomness0 = 1, maximumiter=100, batchsize=5, display=(False,0), steps=3, pretrain_instances = None):
+
+        st0, neighbors0 = self._buildenvironment(self._envspecs)
+        stats = []
+        nstabilizers = 1
+        stabilizers = []
+
+        dispfreq = display[1]
+        display = display[0]
+        randomness = randomness0
+
+
+        for episode in range(nepisodes):
+            rep = random.randint(a=0, b=self._repetitions-1)#b=round(min(episode/5,self._repetitions-1)))
+            self.env.set_linear_reward(self._costs[rep])
+            path = pretrain_instances[rep]
+
+            st = st0.copy()
+            RM = 0 #cumulative reward
+
+            if display and episode % dispfreq == 0:
+                print("Ep."+str(episode)+")")
+                print("_memory ", self._data.size())
+
+
+            for t in range(len(path)):
+                at1 = path[t]
+                st1, rt, final, neighbors, feasible = self.env.response(st, at1)
+                qnext = (sum(mod0(torch.as_tensor(self.instance(st1, at1))) for mod0 in stabilizers)) / max(len(stabilizers),1)
+                rt0 = rt
+                if final:
+                    RM += rt0 - self.env.prize()
+                else:
+                    RM += rt0
+                finalp = False
+                qnextp = qnext
+
+                ist = self.instance(st, at1, st1)
+                if finalp or final:
+                    self._data.add(ist, [2000 + (RM -rt0 + rt)])
+                else:
+                    self._data.add(ist, [rt + qnextp])
+
+                xx, yy = self._data.get_batch(batchsize, last=None)
+                xx = torch.as_tensor(xx)
+                yy = torch.as_tensor(yy)
+                self._model.long_update(xx, yy, noptsteps)
+
+
+                if final or self._stop_function(0): #todo correct for stop functions
+                    break
+                else:
+                    st = st1
+
+            if display and episode % dispfreq == 0:
+                xx, yy = self._data.get_batch(1000, last=1)
+                xx = torch.as_tensor(xx)
+                yy = torch.as_tensor(yy)
+                y_pred = self._model.coremdl(xx)
+                print("LOSS____>", self._model.criterion(y_pred, yy).item())
+
+
+            if not final and feasible:
+                feasible = False
+
+            if nstabilizers>0:
+                if len(stabilizers) < nstabilizers:
+                    stabilizers.append(copy.deepcopy(self._model.coremdl))
+                elif episode%30==0:
+                    stabilizers.pop(0)
+                    stabilizers.append(copy.deepcopy(self._model.coremdl))
+        self.stabilizers = stabilizers
+        #self._data.clear()
         return stats

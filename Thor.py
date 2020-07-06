@@ -9,18 +9,7 @@ import time
 import numpy as np
 import copy
 
-class EnvSpecs(Enum):
-    type = 1
-    statusdimension = 2
-    actiondimension = 3
-    rewardimension = 4
-    edges = 5
-    costs = 6
-    prize = 7
-    penalty = 8
-    finalpoint = 9
-    startingpoint = 10
-    nullalternative = 11
+
 
 class thor():
     def __init__(self, environment_specs,
@@ -34,7 +23,7 @@ class thor():
                  seed = None,
                  stop_function = None,
                  repetitions = None): #todo implement stopping functions
-        torch.set_num_threads(1)
+        #torch.set_num_threads(1)
         self._model = Model(D_in, modelspecs, seed)
         print("D_in",D_in)
         print(modelspecs)
@@ -214,7 +203,7 @@ class thor():
 
                 ist = self.instance(st, at1, st1)
                 if finalp or final:
-                    self._data.add(ist, [1000 + (RM -rt0 + rt)])
+                    self._data.add(ist, [10000 + (RM -rt0 + rt)])
                 else:
                     self._data.add(ist, [rt + qnextp])
 

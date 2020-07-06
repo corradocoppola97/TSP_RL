@@ -13,7 +13,7 @@ class thor2():
                  D_in,
                  modelspecs,
                  criterion = "mse",
-                 optimizer = "SGD",
+                 optimizer = "sgd",
                  optspecs = {"lr":1e-4},
                  memorylength = None,
                  memorypath = None,

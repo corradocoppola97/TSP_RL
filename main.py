@@ -1,11 +1,12 @@
 import torch
 from game import gametable, TableType, RandomGraphSpecs, RandomTreeSpecs
-from Thor import thor, EnvSpecs, EnvType
+from Thor import thor
 from Odin import odin
 import networkx as nx
 import matplotlib.pyplot as plt
 from support import baseline
 import random
+from environment import EnvSpecs, EnvType
 import time
 
 def draw_the_graph(edges, nnodes):
@@ -28,7 +29,7 @@ def test(thoralgo, testcosts, nnodes, basevals, basetimes):
     return vx, vy
 
 
-torch.set_num_threads(1)
+#torch.set_num_threads(1)
 
 dtype = torch.float
 device = torch.device("cpu")
@@ -40,7 +41,7 @@ random.seed(a=seed)
 #Generate random graph
 nnodes = 10
 nedges = 1e10
-repetitions = 1000
+repetitions = 100
 
 graphspecs = {
     RandomGraphSpecs.Nnodes : nnodes,
@@ -91,9 +92,13 @@ for rep in range(repetitions):
 D_in = nedges + nedges + nedges + nedges
 D_out = 1
 specs = [
-    ("relu",nedges*10),
-    ("relu", nedges * 10),
-    ("relu", nedges * 10),
+    ("relu",nedges*4),
+    ("relu", nedges*2),
+    ("relu", nnodes),
+("relu", nnodes),
+#("relu", nnodes),
+("relu", nnodes),
+("relu", nedges),
 # ("sigmoid",nedges*5),
 # ("sigmoid",nedges*5),
 # ("sigmoid",nedges*5),
@@ -111,13 +116,13 @@ specs = [
 ]
 criterion = "mse"
 optimizer = "adam"
-optspecs = { "lr" : 1e-5}#, "momentum": 0, "nesterov": False }
+optspecs = { "lr" : 1e-3}#, "momentum": 0, "nesterov": False }
 
 # collect and plot data
 
 
 # lauch the algorithm with many repetitions
-memorylength = 30000
+memorylength = 10000
 nepisodes = 10000
 memorypath = None
 stop_function = None
@@ -146,17 +151,35 @@ odinalgo = odin(environment_specs,
                  seed,
                  stop_function,
                  repetitions)
+
+# nepisodes0 = round(nepisodes/10)
 #
-# stats = odinalgo.pretrain(nepisodes = nepisodes,
+stats = odinalgo.pretrain(nepisodes = nepisodes*3,
+               display = (True, 10),
+               randomness0 = 1,
+               batchsize = 15,
+               maximumiter = nnodes,
+               steps = 1,
+               pretrain_instances = basesols
+               )
+# stats = odinalgo.solve(nepisodes = nepisodes0,
 #                display = (True, 10),
-#                randomness0 = 1,
+#                randomness0 = 0.3,
 #                batchsize = 15,
 #                maximumiter = nnodes,
 #                steps = 1
 #                )
-stats = odinalgo.solve(nepisodes = nepisodes,
+# stats = odinalgo.pretrain(nepisodes = nepisodes0,
+#                display = (True, 10),
+#                randomness0 = 1,
+#                batchsize = 15,
+#                maximumiter = nnodes,
+#                steps = 1,
+#                pretrain_instances = basesols
+#                )
+stats = odinalgo.solve(nepisodes = nepisodes*5,
                display = (True, 10),
-               randomness0 = 1,
+               randomness0 = 0.001,
                batchsize = 15,
                maximumiter = nnodes,
                steps = 1
