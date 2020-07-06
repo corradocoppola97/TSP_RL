@@ -79,9 +79,13 @@ class min_path(environment):
     def initial_mask(self, st0):
         return self._neighbors[0]
 
-    def set_linear_reward(self, rep):
-        self._linear_reward = {key: -self._costs[rep][key]+0.0 for key in self._costs[rep].keys()}
-        self._costlist = list(self._costs[rep].values())
+    def set_linear_reward(self, rep, testcosts=None):
+        if testcosts is None:
+            self._linear_reward = {key: -self._costs[rep][key] + 0.0 for key in self._costs[rep].keys()}
+            self._costlist = list(self._costs[rep].values())
+        else:
+            self._linear_reward = {key: -testcosts[rep][key] + 0.0 for key in testcosts[rep].keys()}
+            self._costlist = list(testcosts[rep].values())
 
     def instances(self,st, mask):
         insts = {}
@@ -110,7 +114,7 @@ class min_path(environment):
                 visited.append(self._edges[i][1])
         visited = set(visited)
         st1 = self._last_states[at1]
-        rt = self._costlist[at1]
+        rt = -self._costlist[at1]
         nextpoint = self._edges[at1][1]
         mask = []
         for neigh in self._neighbors[nextpoint]:

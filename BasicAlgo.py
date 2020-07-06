@@ -145,7 +145,7 @@ class basicalgo():
 
         for episode in range(nepisodes):
             start = time.time()
-            self.env.set_linear_reward(testcosts[episode])
+            self.env.set_linear_reward(episode, testcosts)
             stat = {"counts": 0,
                     "final_objective": 0,
                     "cumulative_reward": [],
