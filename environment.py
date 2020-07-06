@@ -21,6 +21,10 @@ class EnvSpecs(Enum):
     edges = 8
     finalpoint = 9
     startingpoint = 10
+    As = 11
+    bs = 12
+    cs = 13
+    N = 14
 
 class RewType(Enum):
     linear = 1
@@ -75,9 +79,9 @@ class min_path(environment):
     def initial_mask(self, st0):
         return self._neighbors[0]
 
-    def set_linear_reward(self, c):
-        self._linear_reward = {key: -c[key]+0.0 for key in c.keys()}
-        self._costlist = list(c.values())
+    def set_linear_reward(self, rep):
+        self._linear_reward = {key: -self._costs[rep][key]+0.0 for key in self._costs[rep].keys()}
+        self._costlist = list(self._costs[rep].values())
 
     def instances(self,st, mask):
         insts = {}
@@ -114,9 +118,34 @@ class min_path(environment):
             if j not in visited:
                 mask.append(neigh)
         feasible = len(mask) > 0
-        final = nextpoint == self._finalpoint or not feasible
+        final = nextpoint == self._finalpoint
         inst = self._insts[at1]
         return st1, rt, final, mask, feasible, inst
 
+
+
+
+class bnb():
+    def __init__(self, envspecs):
+        super(bnb, self).__init__(envspecs)
+        self._As = envspecs[EnvSpecs.As]
+        self._bs = envspecs[EnvSpecs.As]
+        self._cs = envspecs[EnvSpecs.As]
+        self._N = envspecs[EnvSpecs.N]
+
+
+    def initial_state(self):
+        pass
+    def initial_mask(self, st0):
+        pass
+    def set_linear_reward(self, rep):
+        pass
+
+    def instances(self, st, mask):
+        pass
+    def last_states(self):
+        pass
+    def output(self,st, at1):
+        pass
 
 

@@ -239,10 +239,6 @@ class GraphCNN(nn.Module):
 
 
     def forward(self, x):
-        # print("------")
-        # print(self.layers[0].weight)
-        # print(self.special_incidence)
-        # print(self.layers[0].weight * self.special_incidence)
        # self.layers[0].weight = nn.Parameter(self.layers[0].weight*self.special_incidence)
         y_pred = self.layers[0](x)
 
@@ -277,19 +273,6 @@ class Model():
             self.coremdl = GraphCNN(D_in, edges, nnodes, specs)
         if seed != None:
             torch.seed = seed
-        self._Odin = False
-
-
-
-
-
-
-
-
-
-    def wake_Odin(self):
-        self._Odin = True
-
 
     def set_loss(self, losstype):
         if losstype == "mse":
@@ -303,13 +286,6 @@ class Model():
             raise Exception("Invalid loss type")
 
 
-
-
-
-
-
-
-
     def set_optimizer(self, name, options):
         if name == "sgd":
             #print(self.coremdl.parameters())
@@ -321,56 +297,63 @@ class Model():
 
     def single_update(self, x, y):
         y_pred = self.coremdl(x)
-        loss = self.criterion(y_pred, y)
+        #loss = self.criterion(y_pred, y)
         self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-    def Odin_single_update2(self, x, y, ccmod, navg, scope):
-        y_pred = self.coremdl(x)
-        tccmod = [ccm(x) for ccm in ccmod]
-        tccmod.append(y_pred)
-        tensorccmod = torch.stack(tccmod, dim=0).sum(dim=0)/navg
-        loss = self.criterion(tensorccmod, y)*scope
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-    def Odin_single_update(self, x, y, ycompetitor):
-        y_pred = self.coremdl(x)
-        loss = (0.5 * torch.log(torch.exp(y_pred) + torch.exp(ycompetitor)) - y).pow(2).sum()
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-    def Odin_single_update_player(self, x, y, ycompetitor):
-        y_pred = self.coremdl(x)
-        loss = -0.25*(torch.log(torch.exp(y_pred) + torch.exp(ycompetitor))).sum()
-        self.optimizer.zero_grad()
-        loss.backward()
+        #loss.backward()
+        self.criterion(y_pred, y).backward()
         self.optimizer.step()
 
     def long_update(self, x, y, repetitions, cmodel0=None, ccmod = None, scope = 1):
-        if self._Odin and cmodel0 is not None:
-            for _ in range(repetitions):
-                self.Odin_single_update(x, y, cmodel0(x))
-        elif self._Odin and ccmod is not None:
-            for _ in range(repetitions):
-                self.Odin_single_update2(x, y, ccmod, len(ccmod)+1, scope)
-        else:
-            for _ in range(repetitions):
-                self.single_update(x, y)
-    def long_update_player(self, x, y, repetitions, cmodel0 ):
         for _ in range(repetitions):
-            self.Odin_single_update_player(x, y, cmodel0(x))
+            self.single_update(x, y)
+
+
+    #
+    # def long_update_player(self, x, y, repetitions, cmodel0 ):
+    #     for _ in range(repetitions):
+    #         self.Odin_single_update_player(x, y, cmodel0(x))
+    #
+    #
+    #
+    # def full_update(self,x, y, repetitions):
+    #     xx = torch.as_tensor(x)
+    #     yy = torch.as_tensor(y)
+    #     for _ in range(repetitions):
+    #         self.single_update(xx, yy)
+    #
+    #
+    #
 
 
 
-    def full_update(self,x, y, repetitions):
-        xx = torch.as_tensor(x)
-        yy = torch.as_tensor(y)
-        for _ in range(repetitions):
-            self.single_update(xx, yy)
+
+
+
+
+
+    # def Odin_single_update2(self, x, y, ccmod, navg, scope):
+    #     y_pred = self.coremdl(x)
+    #     tccmod = [ccm(x) for ccm in ccmod]
+    #     tccmod.append(y_pred)
+    #     tensorccmod = torch.stack(tccmod, dim=0).sum(dim=0)/navg
+    #     loss = self.criterion(tensorccmod, y)*scope
+    #     self.optimizer.zero_grad()
+    #     loss.backward()
+    #     self.optimizer.step()
+    #
+    # def Odin_single_update(self, x, y, ycompetitor):
+    #     y_pred = self.coremdl(x)
+    #     loss = (0.5 * torch.log(torch.exp(y_pred) + torch.exp(ycompetitor)) - y).pow(2).sum()
+    #     self.optimizer.zero_grad()
+    #     loss.backward()
+    #     self.optimizer.step()
+    #
+    # def Odin_single_update_player(self, x, y, ycompetitor):
+    #     y_pred = self.coremdl(x)
+    #     loss = -0.25*(torch.log(torch.exp(y_pred) + torch.exp(ycompetitor))).sum()
+    #     self.optimizer.zero_grad()
+    #     loss.backward()
+    #     self.optimizer.step()
 
 
 

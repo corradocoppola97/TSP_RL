@@ -38,9 +38,9 @@ class basicalgo():
     def _buildenvironment(self, envspecs):
         if envspecs[EnvSpecs.type] == EnvType.min_path:
             self.env = min_path(envspecs)
-        self._costs = self.env.linear_costs()
 
-    def solve(self, nepisodes=100, noptsteps=1, randomness=randomness(1,rule = ExplorationSensitivity.linear_threshold, threshold = 0.02), maximumiter=1000, batchsize=5, display=(False, 0), steps=0, backcopy=0):
+    def solve(self, repetitions, nepisodes=100, noptsteps=1, randomness=randomness(1,rule = ExplorationSensitivity.linear_threshold, threshold = 0.02),
+              maximumiter=1000, batchsize=5, display=(False, 0), steps=0, backcopy=0):
         st0 = self.env.initial_state()
         mask0 = self.env.initial_mask(st0)
         stats = []
@@ -51,10 +51,10 @@ class basicalgo():
         coremdl0 = copy.deepcopy(self._model.coremdl)
 
         for episode in range(nepisodes):
-            if episode % len(self._costs) == 0:
-                indices = random.sample(range(0, len(self._costs)), len(self._costs))
-            rep = indices[episode % len(self._costs)]
-            self.env.set_linear_reward(self._costs[rep])
+            if episode % repetitions == 0:
+                indices = random.sample(range(0, repetitions), repetitions)
+            rep = indices[episode % repetitions]
+            self.env.set_linear_reward(rep)
             stat = {"counts": 0,
                     "final_objective": 0,
                     "cumulative_reward": [],
@@ -79,32 +79,28 @@ class basicalgo():
                     qvalues = {m: self._model.coremdl(torch.as_tensor(insts[m])) for m in mask}
                     at1 = max(qvalues, key=qvalues.get)
                 sol.append(at1)
-                st1, rt, final, mask, feasible, inst = self.env.output(st, at1, last_states, insts)  # save computations by storing the last instances computed
-                # st1, (rt, rs), final, neighbors, feasible = self.env.response(st, at1)
+                st1, rt, final, mask, feasible, inst = self.env.output(st, at1, last_states, insts)
 
                 rt0 = rt
-                if final:
-                    RM += rt0 - self.env.prize()
-                else:
+                RM += rt0
+                cumRM.append(RM)
+                finalp = False
+                feasiblep = True
+                qnextp = 0
+                if not final and feasible:
                     insts = self.env.instances(st1, mask)
                     last_states = self.env.last_states()
                     qvalues = {m: coremdl0(torch.as_tensor(insts[m])) for m in mask}
                     atnext = max(qvalues, key=qvalues.get)
                     qnext = qvalues[atnext]
-                    RM += rt0
-                cumRM.append(RM)
-                finalp = False
-                qnextp = qnext
-                feasiblep = True
 
-                if not final:
                     sp = st1.copy()
-                    ap = max(qvalues, key=qvalues.get)
-                    qnextp = qvalues[ap]
+                    ap = atnext
+                    qnextp = qnext
                     for f in range(steps):
                         sp, rp, finalp, maskp, feasiblep, instp = self.env.output(sp, ap)  # save computations by storing the last instances computed
                         rt += rp
-                        if finalp:
+                        if finalp or not feasiblep:
                             break
                         else:
                             instsp = self.env.instances(sp, maskp)
@@ -112,6 +108,7 @@ class basicalgo():
                             ap = max(qvaluesp, key=qvaluesp.get)
                             qnextp = qvaluesp[ap]
                 if finalp or final:
+                    #print("RM",RM - rt0 + rt,"prize",self.env.prize() + RM - rt0 + rt)
                     self._data.add(inst, self.env.prize() + RM - rt0 + rt)
                 else:
                     self._data.add(inst, rt + (qnextp if feasible and feasiblep else self.env.penalty()))
@@ -125,7 +122,7 @@ class basicalgo():
                 if ccc % (backcopy + 1) == 0:
                     coremdl0 = copy.deepcopy(self._model.coremdl)
 
-                if final or self._stop_function(0):  # todo correct for stop functions
+                if final or self._stop_function(0) or (not final and not feasible):  # todo correct for stop functions
                     break
                 else:
                     st = st1

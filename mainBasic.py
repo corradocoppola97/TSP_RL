@@ -96,7 +96,7 @@ optspecs = { "lr" : 1e-3}#, "momentum": 0, "nesterov": False }
 
 # lauch the algorithm with many repetitions
 memorylength = 10000
-nepisodes = 1000
+nepisodes = 5000
 memorypath = None
 stop_function = None
 
@@ -107,8 +107,8 @@ environment_specs = {
     EnvSpecs.rewardimension : D_out,
     EnvSpecs.edges : edges.copy(),
     EnvSpecs.costs : costs.copy(),
-    EnvSpecs.prize : 2000,
-    EnvSpecs.penalty : -10000,
+    EnvSpecs.prize : 3000,
+    EnvSpecs.penalty : -3000,
     EnvSpecs.finalpoint : nnodes-1,
     EnvSpecs.startingpoint : 0
 }
@@ -125,12 +125,14 @@ balgo = basicalgo(environment_specs,
                  stop_function)
 
 
-stats = balgo.solve(nepisodes = nepisodes,
+stats = balgo.solve(repetitions= repetitions,
+               nepisodes = nepisodes,
                display = (True, 10),
-               randomness = randomness(r0=1, rule=ExplorationSensitivity.linear_threshold, threshold=0.02, sensitivity=0.999),
+               randomness = randomness(r0=1, rule=ExplorationSensitivity.linear_threshold, threshold=0.02, sensitivity=0.99),
                batchsize = 15,
                maximumiter = nnodes,
-               steps = 1)
+               steps = 1,
+               backcopy=10)
 
 
 
@@ -153,10 +155,7 @@ plt.plot(bottom)
 plt.show()
 plt.cla()
 
-
-
 nedges = len(edges)
-
 basevals = []
 basesols = []
 basetimes = []
