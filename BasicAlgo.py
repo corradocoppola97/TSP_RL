@@ -14,6 +14,8 @@ class basicalgo():
                  criterion = "mse",
                  optimizer = "sgd",
                  optspecs = None,
+                 scheduler = "multiplicative",
+                 schedspecs = None,
                  memorylength = None,
                  memorypath = None,
                  seed = None,
@@ -23,6 +25,7 @@ class basicalgo():
         self._model = Model(D_in, modelspecs, seed)
         self._model.set_loss(criterion)
         self._model.set_optimizer(name=optimizer, options=optspecs)
+        self._model.set_scheduler(name=scheduler, options=schedspecs)
         self._data  = data_manager(stacklength=memorylength, seed=seed)
         if memorypath != None:
             self._data.memoryrecoverCSV(memorypath)
@@ -46,13 +49,16 @@ class basicalgo():
         stats = []
         ccc = 0
 
+        displayflag = display[0]
         dispfreq = display[1]
-        display = display[0]
+        displayloss1000 = display[2] if len(display) > 2 else False
         coremdl0 = copy.deepcopy(self._model.coremdl)
 
         for episode in range(nepisodes):
             if episode % repetitions == 0:
                 indices = random.sample(range(0, repetitions), repetitions)
+                if episode > 0:
+                    self._model.schedulerstep()
             rep = indices[episode % repetitions]
             self.env.set_linear_reward(rep)
             stat = {"counts": 0,
@@ -64,7 +70,7 @@ class basicalgo():
             st = copy.deepcopy(st0)
             RM = 0  # cumulative reward
             eps = randomness.next(episode)
-            if display and episode % dispfreq == 0:
+            if displayflag and episode % dispfreq == 0:
                 print("Ep." + str(episode) + ")")
                 print(eps)
             feasible = False
@@ -79,26 +85,26 @@ class basicalgo():
                     qvalues = {m: self._model.coremdl(torch.as_tensor(insts[m])) for m in mask}
                     at1 = max(qvalues, key=qvalues.get)
                 sol.append(at1)
-                st1, rt, final, mask, feasible, inst = self.env.output(st, at1, last_states, insts)
+                st, rt, final, mask, feasible, inst = self.env.output(st, at1, last_states, insts)
 
                 rt0 = rt
                 RM += rt0
                 cumRM.append(RM)
                 finalp = False
-                feasiblep = True
+                feasiblep = feasible
                 qnextp = 0
                 if not final and feasible:
-                    insts = self.env.instances(st1, mask)
+                    insts = self.env.instances(st, mask)
                     last_states = self.env.last_states()
                     qvalues = {m: coremdl0(torch.as_tensor(insts[m])) for m in mask}
                     atnext = max(qvalues, key=qvalues.get)
                     qnext = qvalues[atnext]
 
-                    sp = st1.copy()
+                    sp = st.copy()
                     ap = atnext
                     qnextp = qnext
                     for f in range(steps):
-                        sp, rp, finalp, maskp, feasiblep, instp = self.env.output(sp, ap)  # save computations by storing the last instances computed
+                        sp, rp, finalp, maskp, feasiblep, instp = self.env.output(sp, ap)
                         rt += rp
                         if finalp or not feasiblep:
                             break
@@ -108,7 +114,6 @@ class basicalgo():
                             ap = max(qvaluesp, key=qvaluesp.get)
                             qnextp = qvaluesp[ap]
                 if finalp or final:
-                    #print("RM",RM - rt0 + rt,"prize",self.env.prize() + RM - rt0 + rt)
                     self._data.add(inst, self.env.prize() + RM - rt0 + rt)
                 else:
                     self._data.add(inst, rt + (qnextp if feasible and feasiblep else self.env.penalty()))
@@ -124,17 +129,21 @@ class basicalgo():
 
                 if final or self._stop_function(0) or (not final and not feasible):  # todo correct for stop functions
                     break
-                else:
-                    st = st1
             if not final and feasible:
                 feasible = False
-
+            if displayflag and displayloss1000 and episode % dispfreq == 0:
+                xx, yy = self._data.get_batch(1000, last=0)
+                xx = torch.as_tensor(xx)
+                yy = torch.as_tensor(yy)
+                print("Loss on last 1000:",self._model.criterion(self._model.coremdl(xx),yy).item())
             stat["cumulative_reward"] = cumRM
             stat["counts"] = len(cumRM)
             stat["final_objective"] = RM
             stat["is_final"] = 1 if feasible else 0
             stat["solution"] = sol
             stats.append(stat)
+
+
         return stats
 
     def test(self, testcosts, maximumiter=1000):
@@ -162,19 +171,17 @@ class basicalgo():
             for t in range(maximumiter):
                 at1 = max(qvalues, key = qvalues.get)
                 sol.append(at1)
-                st1, rt, final, mask, feasible, inst = self.env.output(st, at1)
+                st, rt, final, mask, feasible, inst = self.env.output(st, at1)
                 rt0 = rt
                 if final:
                     RM += rt0
                 else:
-                    insts= self.env.instances(st1, mask)
+                    insts= self.env.instances(st, mask)
                     qvalues = {m: self._model.coremdl(torch.as_tensor(insts[m])) for m in mask}
                     RM += rt0
                 cumRM.append(RM)
                 if final or self._stop_function(0): #todo correct for stop functions
                     break
-                else:
-                    st = st1
             if not final and feasible:
                 feasible = False
 

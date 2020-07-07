@@ -24,7 +24,7 @@ def test(algo, testcosts, nnodes, basevals, basetimes):
 
     final_objectives = [stat["final_objective"] for stat in stats]
     times = [stat["time"] for stat in stats]
-    vy = [f / g for f, g in zip(final_objectives, basevals)]
+    vy = [-f / g for f, g in zip(final_objectives, basevals)]
     vx = [f / (g + 1e-8) for f, g in zip(times, basetimes)]
     return vx, vy
 
@@ -34,9 +34,9 @@ seed = 1000
 random.seed(a=seed)
 
 #Generate random graph
-nnodes = 10
+nnodes = 12
 nedges = 1e10
-repetitions = 30
+repetitions = 100
 
 graphspecs = {
     RandomGraphSpecs.Nnodes : nnodes,
@@ -78,11 +78,11 @@ for rep in range(repetitions):
     basesols.append(basesol)
 
 # define the structure of the network
-D_in = nedges + nedges + nedges + 2
+D_in = nedges + nedges + nedges + nedges
 D_out = 1
 specs = [
     ("relu",nedges*4),
-    ("relu", nedges*2),
+    #("relu", nedges*2),
     #("relu", nnodes),
     #("relu", nnodes),
     #("relu", nnodes),
@@ -92,11 +92,13 @@ specs = [
 ]
 criterion = "mse"
 optimizer = "adam"
-optspecs = { "lr" : 1e-3}#, "momentum": 0, "nesterov": False }
+optspecs = { "lr" : 1e-4}#, "momentum": 0.1, "nesterov": False }
+scheduler = "multiplicative"
+schedspecs = { "factor" : 0.995 }
 
 # lauch the algorithm with many repetitions
 memorylength = 10000
-nepisodes = 5000
+nepisodes = 20000
 memorypath = None
 stop_function = None
 
@@ -107,32 +109,33 @@ environment_specs = {
     EnvSpecs.rewardimension : D_out,
     EnvSpecs.edges : edges.copy(),
     EnvSpecs.costs : costs.copy(),
-    EnvSpecs.prize : 3000,
-    EnvSpecs.penalty : -3000,
+    EnvSpecs.prize : 1000,
+    EnvSpecs.penalty : -1000,
     EnvSpecs.finalpoint : nnodes-1,
     EnvSpecs.startingpoint : 0
 }
 
-balgo = basicalgo(environment_specs,
-                 D_in,
-                 specs,
-                 criterion,
-                 optimizer,
-                 optspecs,
-                 memorylength,
-                 memorypath,
-                 seed,
-                 stop_function)
-
+balgo = basicalgo(environment_specs=environment_specs,
+                 D_in=D_in,
+                 modelspecs = specs,
+                 criterion=criterion,
+                 optimizer=optimizer,
+                 optspecs=optspecs,
+                 scheduler=scheduler,
+                 schedspecs=schedspecs,
+                 memorylength=memorylength,
+                 memorypath=memorypath,
+                 seed=seed,
+                 stop_function=stop_function)
 
 stats = balgo.solve(repetitions= repetitions,
                nepisodes = nepisodes,
-               display = (True, 10),
-               randomness = randomness(r0=1, rule=ExplorationSensitivity.linear_threshold, threshold=0.02, sensitivity=0.99),
+               display = (True, 10, True),
+               randomness = randomness(r0=1, rule=ExplorationSensitivity.linear_threshold, threshold=0.02, sensitivity=0.999),
                batchsize = 15,
                maximumiter = nnodes,
                steps = 1,
-               backcopy=10)
+               backcopy=30)
 
 
 
@@ -141,6 +144,10 @@ final_objectives = [stat["final_objective"] if stat["is_final"] == 1 else 0 for 
 plotbasevals = [[-baseval for i in range(len( final_objectives))] for baseval in basevals ]
 
 
+for plotbase in plotbasevals:
+    plt.plot(plotbase)
+plt.show()
+plt.cla()
 for plotbase in plotbasevals:
     plt.plot(plotbase)
 plt.plot(final_objectives,'o')

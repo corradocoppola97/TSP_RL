@@ -90,12 +90,15 @@ class min_path(environment):
     def instances(self,st, mask):
         insts = {}
         states = {}
+        at = [0 for elem in range(len(self._edges))]
         for m in mask:
-            (i, j) = self._edges[m]
+            #(i, j) = self._edges[m]
+            at1 = copy.deepcopy(at)
+            at1[m] = 1
             st1 = copy.deepcopy(st)
             st1[m] = 1
             states[m] = st1
-            insts[m] = st + [i, j] + st1 + self._costlist
+            insts[m] = st + at1 + st1 + self._costlist
         self._last_states = states
         self._insts = insts
         return insts
@@ -121,8 +124,8 @@ class min_path(environment):
             (i,j) = self._edges[neigh]
             if j not in visited:
                 mask.append(neigh)
-        feasible = len(mask) > 0
         final = nextpoint == self._finalpoint
+        feasible = len(mask) > 0 or final
         inst = self._insts[at1]
         return st1, rt, final, mask, feasible, inst
 

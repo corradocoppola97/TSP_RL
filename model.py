@@ -295,6 +295,16 @@ class Model():
         else:
             raise Exception("Invalid optimizer type")
 
+    def set_scheduler(self, name, options):
+        if name == "multiplicative":
+            factor = options.get("factor") if options.get("factor") is not None else .99
+            lmbda = lambda epoch : 0.999**epoch
+            self.scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda=lmbda)
+
+    def schedulerstep(self):
+        self.scheduler.step()
+        #print(self.scheduler.get_lr(),"<")
+
     def single_update(self, x, y):
         y_pred = self.coremdl(x)
         #loss = self.criterion(y_pred, y)
