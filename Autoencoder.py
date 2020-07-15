@@ -104,15 +104,13 @@ autoencoder = Model(D_in, specs)
 autoencoder.set_loss(criterion)
 autoencoder.set_optimizer(optimizer, optspecs)
 
-nepochs = 20
+nepochs = 2000
 
 v = embeddings(edges, costs,  ndim)
 
 batchsize = 15
 
 for _ in range(nepochs):
-    print("EPOCH", _)
-    print("___________")
     indices = random.sample(range(repetitions), repetitions)
     xx = [v[i] for i in indices]
     for b in range(round(repetitions/batchsize) - 1):

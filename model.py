@@ -279,7 +279,8 @@ class Model():
             self.criterion = nn.MSELoss()
         elif losstype == "l1":
             self.criterion = nn.L1Loss()
-            #KLDivLoss
+        elif losstype == "smoothl1":
+            self.criterion = nn.SmoothL1Loss()
         elif losstype == 'KLD':
             self.criterion = nn.KLDivLoss(reduction='batchmean')
         else:
@@ -296,13 +297,16 @@ class Model():
             raise Exception("Invalid optimizer type")
 
     def set_scheduler(self, name, options):
-        if name == "multiplicative":
+        if name is None:
+            self.scheduler = None
+        elif name == "multiplicative":
             factor = options.get("factor") if options.get("factor") is not None else .99
-            lmbda = lambda epoch : 0.999**epoch
+            lmbda = lambda epoch : factor**epoch
             self.scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda=lmbda)
 
     def schedulerstep(self):
-        self.scheduler.step()
+        if self.scheduler is not None:
+            self.scheduler.step()
         #print(self.scheduler.get_lr(),"<")
 
     def single_update(self, x, y):

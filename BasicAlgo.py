@@ -1,6 +1,6 @@
 from model import Model
 from data_manager import data_manager
-from environment import environment, min_path, EnvSpecs, EnvType
+from environment import environment, min_path, bnb1, EnvSpecs, EnvType
 from randomness import randomness, ExplorationSensitivity
 import torch
 import random
@@ -41,9 +41,12 @@ class basicalgo():
     def _buildenvironment(self, envspecs):
         if envspecs[EnvSpecs.type] == EnvType.min_path:
             self.env = min_path(envspecs)
+        elif envspecs[EnvSpecs.type] == EnvType.bnb1:
+            self.env = bnb1(envspecs)
 
-    def solve(self, repetitions, nepisodes=100, noptsteps=1, randomness=randomness(1,rule = ExplorationSensitivity.linear_threshold, threshold = 0.02),
-              maximumiter=1000, batchsize=5, display=(False, 0), steps=0, backcopy=0):
+    def solve(self, repetitions, nepisodes=10000, noptsteps=1,
+              randomness=randomness(1,rule = ExplorationSensitivity.linear_threshold, threshold = 0.02),
+              maximumiter=1000, batchsize=15, display=(False, 0), steps=0, backcopy=0):
         st0 = self.env.initial_state()
         mask0 = self.env.initial_mask(st0)
         stats = []
@@ -60,7 +63,7 @@ class basicalgo():
                 if episode > 0:
                     self._model.schedulerstep()
             rep = indices[episode % repetitions]
-            self.env.set_linear_reward(rep)
+            self.env.set_instance(rep)
             stat = {"counts": 0,
                     "final_objective": 0,
                     "cumulative_reward": [],
@@ -76,7 +79,7 @@ class basicalgo():
             feasible = False
             sol = []
             insts = self.env.instances(st, mask)
-            last_states = self.env.last_states()
+            last_states = copy.deepcopy(self.env.last_states())
             for t in range(maximumiter):
                 if random.random() <= eps:
                     ract = random.randint(0, len(mask) - 1)
@@ -142,8 +145,6 @@ class basicalgo():
             stat["is_final"] = 1 if feasible else 0
             stat["solution"] = sol
             stats.append(stat)
-
-
         return stats
 
     def test(self, testcosts, maximumiter=1000):
@@ -154,7 +155,7 @@ class basicalgo():
 
         for episode in range(nepisodes):
             start = time.time()
-            self.env.set_linear_reward(episode, testcosts)
+            self.env.set_instance(episode, testcosts)
             stat = {"counts": 0,
                     "final_objective": 0,
                     "cumulative_reward": [],

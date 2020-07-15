@@ -16,8 +16,6 @@ def draw_the_graph(edges, nnodes):
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
 
-
-    figure = plt.figure(figsize=(10,10))
     nx.draw_circular(G)
     plt.show()
 
@@ -51,19 +49,6 @@ graphspecs = {
     RandomGraphSpecs.DistParams: {"mu": 10, "sigma": 4}
 }
 
-# depth = 5
-# nnodes = pow(2,depth)
-# repetitions = 100
-#
-# graphspecs = {
-#     RandomTreeSpecs.Depth : depth,
-#     RandomTreeSpecs.Seed: seed,
-#     RandomTreeSpecs.Repetitions: repetitions,
-#     RandomTreeSpecs.Distribution: random.uniform,#random.gauss,
-#     RandomTreeSpecs.DistParams: {"a": 1, "b": 30}
-#     #RandomGraphSpecs.DistParams: {"mu": 10, "sigma": 4}
-# }
-
 edges, costs = gametable.table( TableType.random_graph, graphspecs)##TableType.random_tree, graphspecs)
 testcosts = costs[repetitions: repetitions*3]
 costs = costs[0:repetitions]
@@ -84,7 +69,7 @@ D_in = nedges + nedges + nedges + nedges
 D_out = 1
 specs = [
     ("relu",nedges*8),
-    ("relu",nedges*4),
+("relu",nedges*4),
     #("relu", nedges*2),
     #("relu", nnodes),
     #("relu", nnodes),
@@ -96,8 +81,8 @@ specs = [
 criterion = "mse"
 optimizer = "adam"
 optspecs = { "lr" : 1e-4}#, "momentum": 0.1, "nesterov": False }
-scheduler = None
-schedspecs = None
+scheduler = "multiplicative"
+schedspecs = { "factor" : 0.999 }
 
 # lauch the algorithm with many repetitions
 memorylength = 10000
@@ -106,16 +91,16 @@ memorypath = None
 stop_function = None
 
 environment_specs = {
-    EnvSpecs.type : EnvType.min_path,
+    EnvSpecs.type : EnvType.bnb1,
     EnvSpecs.statusdimension : D_in,
     EnvSpecs.actiondimension : nedges,
     EnvSpecs.rewardimension : D_out,
-    EnvSpecs.edges : edges.copy(),
-    EnvSpecs.costs : costs.copy(),
     EnvSpecs.prize : 1000,
-    EnvSpecs.penalty : -1000,
-    EnvSpecs.finalpoint : nnodes-1,
-    EnvSpecs.startingpoint : 0
+    EnvSpecs.penalty : -300,
+    EnvSpecs.As : As,
+    EnvSpecs.bs : bs,
+    EnvSpecs.cs : cs,
+    EnvSpecs.N : nnodes
 }
 
 balgo = basicalgo(environment_specs=environment_specs,
@@ -133,7 +118,6 @@ balgo = basicalgo(environment_specs=environment_specs,
 
 stats = balgo.solve(repetitions= repetitions,
                nepisodes = nepisodes,
-               noptsteps = 5,
                display = (True, 10, True),
                randomness = randomness(r0=1, rule=ExplorationSensitivity.linear_threshold, threshold=0.02, sensitivity=0.999),
                batchsize = 15,

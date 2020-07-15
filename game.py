@@ -52,7 +52,7 @@ class gametable():
         costs = [{} for _ in range(repetitions)]
         count = 0
 
-        step = 2
+        step = 4
 
         interval = [set(range(i, min(i + step, nnodes))) for i in range(0, nnodes, step)]
         print("Interval", interval)
