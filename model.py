@@ -1,11 +1,6 @@
 import torch
-import random
 from torch import nn
-import torch.nn.functional as F
-from torch.nn.parameter import Parameter
-from torch.nn import init
-import math
-from modules import CoreModel, GraphCNN, LogSumExp
+from modules import CoreModel, GraphCNN
 
 
 class Model():

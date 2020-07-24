@@ -36,7 +36,7 @@ seed = 1000
 random.seed(a=seed)
 
 #Generate random graph
-nnodes = 12
+nnodes = 10
 nedges = 1e10
 repetitions = 100
 
@@ -48,7 +48,7 @@ graphspecs = {
     RandomGraphSpecs.Repetitions: repetitions*3,
     RandomGraphSpecs.Distribution: random.gauss, #random.uniform,#
     #RandomGraphSpecs.DistParams: {"a": 1, "b": 30}
-    RandomGraphSpecs.DistParams: {"mu": 10, "sigma": 4}
+    RandomGraphSpecs.DistParams: {"mu": 0.5, "sigma": 0.04}
 }
 
 # depth = 5
@@ -96,12 +96,12 @@ specs = [
 criterion = "mse"
 optimizer = "adam"
 optspecs = { "lr" : 1e-4}#, "momentum": 0.1, "nesterov": False }
-scheduler = None
-schedspecs = None
+scheduler = "multiplicative"
+schedspecs = {"factor":0.75}
 
 # lauch the algorithm with many repetitions
 memorylength = 10000
-nepisodes = 20000
+nepisodes = 100000
 memorypath = None
 stop_function = None
 
@@ -133,10 +133,10 @@ balgo = basicalgo(environment_specs=environment_specs,
 
 stats = balgo.solve(repetitions= repetitions,
                nepisodes = nepisodes,
-               noptsteps = 5,
+               noptsteps = 1,
                display = (True, 10, True),
                randomness = randomness(r0=1, rule=ExplorationSensitivity.linear_threshold, threshold=0.02, sensitivity=0.999),
-               batchsize = 15,
+               batchsize = 32,
                maximumiter = nnodes,
                steps = 1,
                backcopy=30)

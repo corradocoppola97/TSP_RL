@@ -1,12 +1,8 @@
 import torch
-import random
 from torch import nn
-import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 from torch.nn import init
 import math
-
-
 
 #special layer
 class LogSumExp(nn.Module):
@@ -41,6 +37,9 @@ class LogSumExp(nn.Module):
             pW = torch.stack([torch.stack([self.weight[i] * torch.as_tensor([x[b][ll] for ll in range(self.n)]) for b in range(B)]) for i in range(self.N)])
             ret = torch.logsumexp(pW, dim=2).transpose(0,1)
         return ret
+
+
+
 
 #superclass for the model that can be used inside the algorithm
 class BasicModel(nn.Module):
@@ -105,10 +104,6 @@ class BasicModel(nn.Module):
             self.layers.append(nn.Softmin(spec0[1], spec[1]))
         else:
             raise Exception("Not a valid input class for the layer.")
-
-
-
-
 
 class CoreModel(BasicModel):
     def __init__(self, D_in, specs):

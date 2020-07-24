@@ -101,7 +101,7 @@ class basicalgo():
                     last_states = self.env.last_states()
                     qvalues = {m: coremdl0(torch.as_tensor(insts[m])) for m in mask}
                     atnext = max(qvalues, key=qvalues.get)
-                    qnext = qvalues[atnext]
+                    qnext = qvalues[atnext][0].detach().numpy()
 
                     sp = st.copy()
                     ap = atnext
@@ -115,7 +115,7 @@ class basicalgo():
                             instsp = self.env.instances(sp, maskp)
                             qvaluesp = {m: coremdl0(torch.as_tensor(instsp[m])) for m in maskp}
                             ap = max(qvaluesp, key=qvaluesp.get)
-                            qnextp = qvaluesp[ap]
+                            qnextp = qvaluesp[ap][0].detach().numpy()
                 if finalp or final:
                     self._data.add(inst, self.env.prize() + RM - rt0 + rt)
                 else:
@@ -123,7 +123,7 @@ class basicalgo():
 
                 xx, yy = self._data.get_batch(batchsize)
                 xx = torch.as_tensor(xx)
-                yy = torch.as_tensor(yy)
+                yy = torch.as_tensor(yy).reshape((len(yy),1))
                 self._model.long_update(xx, yy, noptsteps)
                 ccc += 1
 
@@ -137,7 +137,7 @@ class basicalgo():
             if displayflag and displayloss1000 and episode % dispfreq == 0:
                 xx, yy = self._data.get_batch(1000, last=0)
                 xx = torch.as_tensor(xx)
-                yy = torch.as_tensor(yy)
+                yy = torch.as_tensor(yy).reshape((len(yy),1))
                 print("Loss on last 1000:",self._model.criterion(self._model.coremdl(xx),yy).item())
             stat["cumulative_reward"] = cumRM
             stat["counts"] = len(cumRM)

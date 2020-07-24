@@ -76,7 +76,7 @@ class gametable():
 
                             for rep in range(repetitions):
                                 cost = gametable.custrand(distribution, distparams)
-                                costs[rep][edge] = cost + 0.0 + math.pow( i*len(valset)*0.02 + j*0.03+gametable.custrand(distribution, distparams),2)
+                                costs[rep][edge] = cost + 0.0 + math.pow( i*len(valset)*0.02/nnodes + j*0.03/nnodes+gametable.custrand(distribution, distparams),2)
                             count += 1
 
         return edges, costs
