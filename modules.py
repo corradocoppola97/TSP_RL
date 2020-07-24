@@ -29,10 +29,8 @@ class LogSumExp(nn.Module):
         if len(size) == 1:
             B = 1
             pW = torch.stack([torch.stack([ self.weight[i]*torch.as_tensor([x[ll] for ll in range(self.n)]) for b in range(B)])for i in range(self.N)])
-
             ret = torch.reshape(torch.logsumexp(pW, dim=2), (B,self.N))
         else:
-            #print("wtffff    ", x.size())
             B = len(x)
             pW = torch.stack([torch.stack([self.weight[i] * torch.as_tensor([x[b][ll] for ll in range(self.n)]) for b in range(B)]) for i in range(self.N)])
             ret = torch.logsumexp(pW, dim=2).transpose(0,1)
@@ -50,6 +48,7 @@ class BasicModel(nn.Module):
         self.specialind = -1
     def forward(self):
         pass
+
     def _codify_layers(self,  i, specs, mB = None):
         spec0 = specs[i]
         spec = specs[i + 1]
@@ -119,6 +118,7 @@ class CoreModel(BasicModel):
 
     def forward(self, x):
         y_pred = self.layers[0](x)
+
         for i in range(1, self.depth):
             if i != self.specialind:
                 # if i <= 2:
@@ -159,10 +159,10 @@ class GraphCNN(BasicModel):
         self.layers = nn.ModuleList(self.layers)
 
         self.mA = [None for ind in range(self.depth)]
-        #self.mA[2] = True
+        self.mA[2] = True
         #self.mA[4] = True
         self.mA[6] = True
-        self.mA[8] = True
+        #self.mA[8] = True
         #self.mA[10] = True
         #self.mA[self.depth - 3] = True
         #self.mA[self.depth - 1] = True

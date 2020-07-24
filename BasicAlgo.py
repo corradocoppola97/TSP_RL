@@ -23,6 +23,7 @@ class basicalgo():
         if optspecs is None:
             optspecs = {"lr": 1e-4}
         self._model = Model(D_in, modelspecs, seed)
+        #self._model = Model(D_in, modelspecs, seed, environment_specs[EnvSpecs.edges], environment_specs[EnvSpecs.finalpoint]+1)
         self._model.set_loss(criterion)
         self._model.set_optimizer(name=optimizer, options=optspecs)
         self._model.set_scheduler(name=scheduler, options=schedspecs)

@@ -55,7 +55,7 @@ class gametable():
         step = 4
 
         interval = [set(range(i, min(i + step, nnodes))) for i in range(0, nnodes, step)]
-        print("Interval", interval)
+        #print("Interval", interval)
         lenint = len(interval)
         for vv in range(lenint):
             pre = set([])

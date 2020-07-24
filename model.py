@@ -54,8 +54,8 @@ class Model():
         self.criterion(y_pred, y).backward()
         self.optimizer.step()
 
-    def long_update(self, x, y, repetitions):
-        for _ in range(repetitions):
+    def long_update(self, x, y, nsteps):
+        for _ in range(nsteps):
             self.single_update(x, y)
 
 
