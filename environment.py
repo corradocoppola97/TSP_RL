@@ -170,7 +170,7 @@ class job_shop_scheduling(environment):
                     if self._prec[i]==[]:  #e se questa operazione non ha precedenti
                         m.append(self._operations[i] +[cost(allocated[int(index)][0], st)])  #aggiungiamola alla maschera ma il primo istante posibile sarà quello dell'ultima operazione su quella macchina
                     if  self._prec[i] in allocated:  #se l'operazione invece ha precedenti in allocated
-                        maxcost=max(cost(allocated1[int(index)][0],st1),cost(self._prec[i][0], st))  #(prendo il tempo di completamento maggiore tra quello del precedente e quello dell'ultima op sulla stessa macchina)
+                        maxcost=max(cost(allocated1[int(index)][0],st),cost(self._prec[i][0], st))  #(prendo il tempo di completamento maggiore tra quello del precedente e quello dell'ultima op sulla stessa macchina)
                         m.append(self._operations[i] + [maxcost])
                 else:           #se non c'è alcuna operazone già allocata che usa la stessa macchina
                      if self._prec[i] == []:
