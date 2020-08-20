@@ -28,31 +28,33 @@ class baseline():
         machines = set([(j) for (i, j) in operations])  #insieme delle macchine
 
         tij = {(i, j): self.cpmod.continuous_var(name="t" + str(i) + "_" + str(j), lb=0) for (i, j) in operations}  #start time of job i on machine i, that is start time of operations
+
         xijk = {(i, j, k): self.cpmod.binary_var(name="x" + str(i) + "_" + str(j) + "_" + str(k))
                 for i in jobs for j in jobs if j>i for k in machines if (i,k) in operations and (j,k) in operations} #binary var, 1 if job i precedes job j on machine k, 0 otherwise
+        #for k in machines for (i,k) in operations for (j,k) in operations if i<j  posso scriverlo anche così più brevemente
 
         C_max=self.cpmod.continuous_var(name="C_max",lb=0)  #tempo di completamento massimo
-        cons_C=[self.cpmod.add_constraint(C_max >= tij[op] + proc_time[op]) for op in operations]
+
         obj = self.cpmod.minimize(C_max)  #min makespan
 
+        cons_C = [self.cpmod.add_constraint(C_max >= tij[op] + proc_time[op]) for op in operations]
+        #cons_C = [self.cpmod.add_constraint(C_max >= tij[operations[i]] + proc_time[operations[i]]) for i in range(len(operations)) if i == len(operations)-1 or operations[i][0] != operations[i+1][0]]
+
         cons_prec = [self.cpmod.add_constraint(
-            tij[operations[i]] - tij[operations[i - 1]] >= proc_time[operations[i - 1]]) for i in
-            range(1, len(operations)) if operations[i][0] == operations[i - 1][0]
+            tij[operations[i]] - tij[operations[i - 1]] >= proc_time[operations[i - 1]])
+            for i in range(1, len(operations)) if operations[i][0] == operations[i - 1][0]
         ]   #vincoli di precedenza
 
         M = 1e+6
 
         cons_disj1 = [self.cpmod.add_constraint(
-            tij[operations[i]] + proc_time[operations[i]] <= tij[operations[j]] + M * (
-                        1 - xijk[(operations[i][0], operations[j][0], operations[i][1])])) for i in
-            range(len(operations)) for j in range(len(operations)) if j > i and operations[i][1] == operations[j][1]
-        ]  #vincoli disgiuntivi 1
+            tij[(i,k)] + proc_time[(i,k)] <= tij[(j,k)] + M * (1 - xijk[i,j,k]))
+            for i in jobs for j in jobs if j>i for k in machines if (i,k) in operations and (j,k) in operations]  #vincoli disgiuntivi 1
+        #for k in machines for (i,k) in operations for (j,k) in operations if i<j  posso scriverlo anche così più brevemente
 
         cons_disj2 = [self.cpmod.add_constraint(
-            tij[operations[j]] + proc_time[operations[j]] <= tij[operations[i]] + M * (
-            xijk[(operations[i][0], operations[j][0], operations[i][1])])) for i in range(len(operations)) for j in
-            range(len(operations)) if j > i and operations[i][1] == operations[j][1]
-        ] #vincoli disgiuntivi 2
+            tij[(j,k)] + proc_time[(j,k)] <= tij[(i,k)] + M * xijk[i, j, k])
+            for i in jobs for j in jobs if j>i for k in machines if (i,k) in operations and (j,k) in operations]  #vincoli disgiuntivi 2
 
         start = time.time()
         self.cpmod.solve()
@@ -87,7 +89,6 @@ class baseline():
             self.cpmod.sum( xij[edge] for edge in edges if edge[1] == nnodes - 1) ==
             self.cpmod.sum(xij[edge] for edge in edges if edge[0] == nnodes - 1) + 1
         )
-
 
         start = time.time()
         self.cpmod.solve()
