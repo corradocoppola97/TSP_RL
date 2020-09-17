@@ -2,11 +2,11 @@ from enum import Enum
 import random
 import math
 
-
 class TableType(Enum):
     random_graph = 1
     random_tree = 2
-
+    random_table = 3
+    random_jobs = 4
 
 class RandomGraphSpecs(Enum):
     Nnodes = 1
@@ -24,13 +24,107 @@ class RandomTreeSpecs(Enum):
     Distribution = 4
     DistParams = 5
 
+class RandomTableSpecs(Enum):
+    Njobs = 1
+    Nmachines = 2
+    Probability = 3
+    Seed = 4
+    Repetitions = 5
+    Distribution = 6
+    DistParams = 7
+
+class RandomJobsSpecs(Enum):
+    Njobs = 1
+    Nmachines = 2
+    Probability = 3
+    Seed = 4
+    Repetitions = 5
+    Distribution = 6
+    DistParams = 7
 
 class gametable():
-    def table(type=TableType.random_graph, specs=None):
+    def table(type=TableType.random_table, specs=None):
         if type == TableType.random_graph:
             return gametable._random_graph(specs)
         elif type == TableType.random_tree:
             return gametable._random_tree(specs)
+        elif type == TableType.random_table:
+            return gametable._random_table(specs)
+        elif type == TableType.random_jobs:
+            return gametable._random_jobs(specs)
+
+    def _random_jobs(specs=None):
+        njobs = specs[RandomJobsSpecs.Njobs]
+        nmachines = specs[RandomJobsSpecs.Nmachines]
+        pr = specs[RandomJobsSpecs.Probability]
+        seed = specs[RandomJobsSpecs.Seed]
+        repetitions = specs.get(RandomJobsSpecs.Repetitions)
+        distribution = specs.get(RandomJobsSpecs.Distribution)
+        distparams = specs.get(RandomJobsSpecs.DistParams)
+        if repetitions is None:
+            repetitions = 1
+        if distribution is None:
+            distribution = random.randint
+        if distparams is None:
+            distparams = {"lb": 1, "ub": 10}
+        random.seed(a=seed)
+
+        jobs=[[] for _ in range(njobs)]
+        costs = [[{} for i in range(njobs)] for _ in range(repetitions)]
+
+        machines=[i+1 for i in range(nmachines)]
+        for j in range(njobs):
+            machs=random.sample(machines,len(machines))
+            for m in machs:
+                chance = random.random()
+                if chance <= pr:
+                    jobs[j].append(m)
+
+                    for rep in range(repetitions):
+                        cost = gametable.custrand(distribution, distparams)
+                        costs[rep][j][m] = round(cost,2) + 0.0
+
+        return jobs, costs
+
+    def _random_table(specs=None):
+        njobs = specs[RandomTableSpecs.Njobs]
+        nmachines = specs[RandomTableSpecs.Nmachines]
+        pr = specs[RandomTableSpecs.Probability]
+        seed = specs[RandomTableSpecs.Seed]
+        repetitions = specs.get(RandomTableSpecs.Repetitions)
+        distribution = specs.get(RandomTableSpecs.Distribution)
+        distparams = specs.get(RandomTableSpecs.DistParams)
+        if repetitions is None:
+            repetitions = 1
+        if distribution is None:
+            distribution = random.randint
+        if distparams is None:
+            distparams = {"lb": 1, "ub": 10}
+        random.seed(a=seed)
+
+        operations=[]
+        costs = [{} for _ in range(repetitions)]
+
+        machines=[i for i in range(nmachines)]
+        for i in range(njobs):
+            machs=random.sample(machines,len(machines))
+            for j in machs:
+                chance = random.random()
+                if chance <= pr:
+                    op = (i, j)
+                    operations.append(op)
+
+                    for rep in range(repetitions):
+                        cost = gametable.custrand(distribution, distparams)
+                        costs[rep][op] = round(cost,2) + 0.0
+
+        return operations, costs
+
+    def custrand(distribution, distparams):
+        if distribution == random.uniform or distribution == random.randint:
+            return distribution(a=distparams["a"], b=distparams["b"])
+        elif distribution == random.gauss:
+            return max(0.1, distribution(mu=distparams["mu"], sigma=distparams["sigma"]))
 
     def _random_graph(specs=None):
         nnodes = specs[RandomGraphSpecs.Nnodes]
