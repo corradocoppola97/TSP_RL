@@ -1,14 +1,17 @@
 import torch
+torch.set_num_threads(4)
 from torch import nn
-from modules import CoreModel, GraphCNN
-
+from modules2 import CoreModel, GraphCNN, LstmModel
 
 class Model():
-    def __init__(self, D_in, specs,  seed = None, edges = None, nnodes = None):
+    def __init__(self, D_in, specs,  LSTMflag = False, seed = None, edges = None, nnodes = None):
         #torch.set_num_threads(1)
         self.specs = specs
         if edges is None:
-            self.coremdl   = CoreModel(D_in, specs)
+            if LSTMflag == True:
+                self.coremdl = LstmModel(D_in, specs)
+            else:
+                self.coremdl   = CoreModel(D_in, specs)
         else:
             self.coremdl = GraphCNN(D_in, edges, nnodes, specs)
         if seed != None:
@@ -47,15 +50,25 @@ class Model():
     def schedulerstep(self):
         if self.scheduler is not None:
             self.scheduler.step()
+    #
+    # def single_update(self, x, y):
+    #     y_pred = self.coremdl(x)
+    #     y = y.type(torch.FloatTensor)
+    #     self.optimizer.zero_grad()
+    #     self.criterion(y_pred, y).backward()
+    #     self.optimizer.step()
 
-    def single_update(self, x, y):
-        y_pred = self.coremdl(x)
+    # def long_update(self, x, y, nsteps):
+    #     for _ in range(nsteps):
+    #         self.single_update(x, y)
+
+    def single_update(self, x, y, bsize = 0):
+        y_pred = self.coremdl(x, bsize)
+        y=y.type(torch.FloatTensor)
         self.optimizer.zero_grad()
         self.criterion(y_pred, y).backward()
         self.optimizer.step()
 
-    def long_update(self, x, y, nsteps):
+    def long_update(self, x, y, nsteps, bsize = 0):
         for _ in range(nsteps):
-            self.single_update(x, y)
-
-
+            self.single_update(x, y, bsize)
