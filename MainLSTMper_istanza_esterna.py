@@ -37,7 +37,7 @@ njobs=3
 nmachines=4
 # for i in nmach:
 #     nmachines=i
-repetitions=10
+repetitions=3
 
 nmachines=int(nmachines)
 njobs=int(njobs)
@@ -51,19 +51,19 @@ jobsspecs = {
     RandomJobsSpecs.DistParams: {"mu": 10, "sigma": 1}
 }
 
-jobs, costs = gametable.table(TableType.random_jobs, jobsspecs) ##TableType.random_tree, graphspecs)
-print(jobs, costs)
-testcosts = costs[repetitions: repetitions*3]
-costs = costs[0:repetitions]
-njobs = len(jobs)
+#jobs, costs = gametable.table(TableType.random_jobs, jobsspecs) ##TableType.random_tree, graphspecs)
+#print(jobs, costs)
+#testcosts = costs[repetitions: repetitions*3]
+#costs = costs[0:repetitions]
+#njobs = len(jobs)
 
-# f = pd.read_fwf(r'C:\Users\Marta\Desktop\TESI\istanzagiocattolo.txt', header=None, sep='  ')  #INSERIRE IL PATH
-# t = np.array(f)
-# jobs=[[job[i] for i in range(0,len(job),2) if not np.isnan(job[i])] for job in t]
-# costs=[{job[i]: job[i+1] for i in range(0,len(job),2) if not np.isnan(job[i])} for job in t]
-# costs=[costs, costs, costs]
-# njobs=len(jobs)
-# nmachines=max([len(job) for job in jobs])
+f = pd.read_fwf(r'C:\Users\Marta\Desktop\TESI\istanzagiocattolo.txt', header=None, sep='  ')  #INSERIRE IL PATH
+t = np.array(f)
+jobs=[[job[i] for i in range(0,len(job),2) if not np.isnan(job[i])] for job in t]
+costs=[{job[i]: job[i+1] for i in range(0,len(job),2) if not np.isnan(job[i])} for job in t]
+costs=[costs, costs, costs]
+njobs=len(jobs)
+nmachines=max([len(job) for job in jobs])
 
 basevals = []
 basesols = []
