@@ -1,4 +1,5 @@
 import torch
+torch.set_num_threads(4)
 from game import gametable, TableType, RandomGraphSpecs, RandomTreeSpecs
 from Thor import thor, EnvSpecs, EnvType
 from Odin import odin

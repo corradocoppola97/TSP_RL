@@ -1,4 +1,5 @@
 import torch
+torch.set_num_threads(4)
 from game import gametable, TableType, RandomGraphSpecs, RandomTreeSpecs
 from Thor import thor, EnvSpecs, EnvType
 from Odin import odin
@@ -18,7 +19,6 @@ def draw_the_graph(edges, nnodes):
 
     nx.draw(G)
     plt.show()
-
 
 
 dtype = torch.float

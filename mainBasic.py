@@ -3,23 +3,23 @@ from game import gametable, TableType, RandomGraphSpecs, RandomTreeSpecs
 from BasicAlgo import basicalgo
 import networkx as nx
 import matplotlib.pyplot as plt
-#from support import baseline
+from support import baseline
 import random
 from environment import EnvSpecs, EnvType
 import time
 from randomness import randomness, ExplorationSensitivity
 
-def draw_the_graph(edges, nnodes):
-    G = nx.DiGraph()
-    ned = len(edges)
-    nodes = [i for i in range(nnodes)]
-    G.add_nodes_from(nodes)
-    G.add_edges_from(edges)
-
-
-    figure = plt.figure(figsize=(10,10))
-    nx.draw_circular(G)
-    plt.show()
+# def draw_the_graph(edges, nnodes):
+#     G = nx.DiGraph()
+#     ned = len(edges)
+#     nodes = [i for i in range(nnodes)]
+#     G.add_nodes_from(nodes)
+#     G.add_edges_from(edges)
+#
+#
+#     figure = plt.figure(figsize=(10,10))
+#     nx.draw_circular(G)
+#     plt.show()
 
 def test(algo, testcosts, nnodes, basevals, basetimes):
     stats = algo.test(testcosts, maximumiter=nnodes)
@@ -37,8 +37,8 @@ random.seed(a=seed)
 
 #Generate random graph
 nnodes = 15
-nedges = 1e10
-repetitions = 100
+nedges = 100
+repetitions = 10000
 
 graphspecs = {
     RandomGraphSpecs.Nnodes : nnodes,
@@ -67,19 +67,19 @@ graphspecs = {
 edges, costs = gametable.table( TableType.random_graph, graphspecs)##TableType.random_tree, graphspecs)
 testcosts = costs[repetitions: repetitions*3]
 costs = costs[0:repetitions]
-draw_the_graph(edges, nnodes)
+#draw_the_graph(edges, nnodes)
 nedges = len(edges)
 
 basevals = []
 basesols = []
 for rep in range(repetitions):
-    #baselin = baseline()
-    #baseval, basesol, faketime = baselin.min_path(nnodes, edges, costs[rep])
-    #print("    BASELINE", basesol, " BASELINE", -baseval)
-    #basevals.append(baseval)
-    #basesols.append(basesol)
-    basevals.append(1)
-    basesols.append([0,14])
+    baselin = baseline()
+    baseval, basesol, faketime = baselin.min_path(nnodes, edges, costs[rep])
+    print("    BASELINE", basesol, " BASELINE", -baseval)
+    basevals.append(baseval)
+    basesols.append(basesol)
+    #  basevals.append(1)
+    #  basesols.append([0,14])
 
 # define the structure of the network
 D_in = nedges + nedges + nedges + nedges
@@ -175,14 +175,14 @@ basesols = []
 basetimes = []
 
 for rep in range(repetitions):
-    # baselin = baseline()
-    # baseval, basesol, basetime = baselin.min_path(nnodes, edges, testcosts[rep])
-    # basevals.append(baseval)
-    # basesols.append(basesol)
-    # basetimes.append(basetime)
-    basevals.append(1)
-    basesols.append([0,14])
-    basetimes.append(1)
+    baselin = baseline()
+    baseval, basesol, basetime = baselin.min_path(nnodes, edges, testcosts[rep])
+    basevals.append(baseval)
+    basesols.append(basesol)
+    basetimes.append(basetime)
+    # basevals.append(1)
+    # basesols.append([0,14])
+    # basetimes.append(1)
 
 odx, ody = test(balgo, testcosts, nnodes, basevals, basetimes)
 plt.scatter(x=odx, y=ody)

@@ -1,4 +1,5 @@
 import torch
+torch.set_num_threads(4)
 from torch import nn
 from torch.nn.parameter import Parameter
 from torch.nn import init
@@ -119,6 +120,7 @@ class CoreModel(BasicModel):
     def forward(self, x):
         y_pred = self.layers[0](x)
 
+
         for i in range(1, self.depth):
             if i != self.specialind:
                 # if i <= 2:
@@ -132,6 +134,61 @@ class CoreModel(BasicModel):
                 y_predB = self.specialLayer3(y_predB)
                 y_pred = torch.cat((y_predA,y_predB), dim = 1)
         return y_pred
+
+class LstmModel(BasicModel): #o NNmodule
+    def __init__(self, input_dim, specs):
+        super(LstmModel, self).__init__()
+
+        hidden_dim = specs[0]
+        layer_dim = specs[1]
+        output_dim = specs[2]
+        layer2_dim = specs[3]
+        self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim, batch_first=True)
+        self.lstm2 = nn.LSTM(hidden_dim, hidden_dim, layer2_dim, batch_first=True)
+        #self.out = nn.Linear(hidden_dim, output_dim)
+        self.network = nn.Sequential(
+            nn.Linear(hidden_dim,hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim,hidden_dim//2),
+            nn.ReLU(),
+            nn.Linear(hidden_dim//2, output_dim),
+            )
+
+        self.layer_dim = layer_dim
+        self.hidden_dim = hidden_dim
+        self.output_dim = output_dim
+
+    def forward(self, xx, bsize = 0):
+        if bsize == 0:
+             bsize = 1
+             xx=[xx]
+        out_m = torch.zeros((bsize))
+        for j in range(bsize):
+            x=xx[j]
+            lsout = torch.zeros((1, len(x), self.hidden_dim))
+            i = 0
+            for xi in x:
+                inp = torch.as_tensor([xi]).type(torch.FloatTensor)
+                h0 = torch.zeros(self.layer_dim, inp.size(0), self.hidden_dim).requires_grad_()
+                c0 = torch.zeros(self.layer_dim, inp.size(0), self.hidden_dim).requires_grad_()
+                out, (hn, cn) = self.lstm(inp, (h0.detach(), c0.detach())) #L'out size sarà (batch, numero operazioni, hidden_dim), prendo ultima operazione
+                #print("outsize", out[:, -1, :].reshape(-1).size())
+                lsout[0][i] = out[:, -1, :].reshape(-1)
+                i += 1
+            h0 = torch.zeros(self.layer_dim, 1, self.hidden_dim).requires_grad_()
+            c0 = torch.zeros(self.layer_dim, 1, self.hidden_dim).requires_grad_()  # todo fix the sizes in order to take into account mini-batches
+            #lsout=lsout.reshape(-1)
+
+            out, (hn, cn) = self.lstm2(lsout, (h0.detach(), c0.detach())) #lsout avrà dim (1, seq_lenght=numero job, hidden_dim)
+            #out avrà (1, numero jobs, n features)
+            # inp = torch.cat(lsout, -1)
+            inp = out[:, -1, :].reshape(-1) #hidden dimension
+            out = self.network(inp)
+            out_m[j] = out #.detach()
+        if bsize == 32:
+            print('out_m', out_m)
+
+        return out_m
 
 class GraphCNN(BasicModel):
     def __init__(self, D_in,edges, nnodes,specs):

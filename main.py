@@ -41,7 +41,7 @@ random.seed(a=seed)
 #Generate random graph
 nnodes = 10
 nedges = 1e10
-repetitions = 100
+repetitions = 4
 
 graphspecs = {
     RandomGraphSpecs.Nnodes : nnodes,

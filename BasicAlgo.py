@@ -1,8 +1,9 @@
 from model import Model
 from data_manager import data_manager
-from environment import environment, min_path, bnb1, EnvSpecs, EnvType
+from environment import environment, min_path, bnb1, EnvSpecs, EnvType, job_shop_scheduling, js_LSTM
 from randomness import randomness, ExplorationSensitivity
 import torch
+torch.set_num_threads(4)
 import random
 import copy
 import time
@@ -23,6 +24,7 @@ class basicalgo():
         if optspecs is None:
             optspecs = {"lr": 1e-4}
         self._model = Model(D_in, modelspecs, seed)
+        #self._model = Model(D_in, modelspecs, LSTMflag = True, seed = seed)
         #self._model = Model(D_in, modelspecs, seed, environment_specs[EnvSpecs.edges], environment_specs[EnvSpecs.finalpoint]+1)
         self._model.set_loss(criterion)
         self._model.set_optimizer(name=optimizer, options=optspecs)
@@ -42,8 +44,12 @@ class basicalgo():
     def _buildenvironment(self, envspecs):
         if envspecs[EnvSpecs.type] == EnvType.min_path:
             self.env = min_path(envspecs)
-        elif envspecs[EnvSpecs.type] == EnvType.bnb1:
+        if envspecs[EnvSpecs.type] == EnvType.bnb1:
             self.env = bnb1(envspecs)
+        if envspecs[EnvSpecs.type] == EnvType.job_shop_scheduling:
+            self.env = job_shop_scheduling(envspecs)
+        if envspecs[EnvSpecs.type] == EnvType.js_LSTM:
+            self.env = js_LSTM(envspecs)
 
     def solve(self, repetitions, nepisodes=10000, noptsteps=1,
               randomness=randomness(1,rule = ExplorationSensitivity.linear_threshold, threshold = 0.02),
@@ -81,7 +87,9 @@ class basicalgo():
             sol = []
             insts = self.env.instances(st, mask)
             last_states = copy.deepcopy(self.env.last_states())
+            #niter=0
             for t in range(maximumiter):
+                #niter+=1
                 if random.random() <= eps:
                     ract = random.randint(0, len(mask) - 1)
                     at1 = mask[ract]
@@ -123,7 +131,8 @@ class basicalgo():
                     self._data.add(inst, rt + (qnextp if feasible and feasiblep else self.env.penalty()))
 
                 xx, yy = self._data.get_batch(batchsize)
-                xx = torch.as_tensor(xx)
+                #print('yy',yy)
+                xx = torch.tensor(xx)
                 yy = torch.as_tensor(yy).reshape((len(yy),1))
                 self._model.long_update(xx, yy, noptsteps)
                 ccc += 1
@@ -133,19 +142,28 @@ class basicalgo():
 
                 if final or self._stop_function(0) or (not final and not feasible):  # todo correct for stop functions
                     break
-            if not final and feasible:
-                feasible = False
+            # if not final and feasible:
+            #     feasible = False
             if displayflag and displayloss1000 and episode % dispfreq == 0:
                 xx, yy = self._data.get_batch(1000, last=0)
                 xx = torch.as_tensor(xx)
                 yy = torch.as_tensor(yy).reshape((len(yy),1))
                 print("Loss on last 1000:",self._model.criterion(self._model.coremdl(xx),yy).item())
+            if episode==15:
+                stat["Loss_in"]=(self._model.criterion(self._model.coremdl(xx),yy).item())
+                #print(stat["Loss_in"])
+            if episode==nepisodes-1:
+                stat["Loss_fin"]=(self._model.criterion(self._model.coremdl(xx),yy).item())
+                #print(stat["Loss_fin"])
             stat["cumulative_reward"] = cumRM
             stat["counts"] = len(cumRM)
             stat["final_objective"] = RM
-            stat["is_final"] = 1 if feasible else 0
+            #print(RM)
+            stat["is_final"] = 1 #if feasible else 0
             stat["solution"] = sol
             stats.append(stat)
+            if stat["is_final"] == 1:
+             print(stat['final_objective'])
         return stats
 
     def test(self, testcosts, maximumiter=1000):

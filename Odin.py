@@ -3,6 +3,7 @@ from data_manager import data_manager
 from environment import environment, EnvType, RewType
 from enum import Enum
 import torch
+torch.set_num_threads(4)
 import random
 import math
 import copy
