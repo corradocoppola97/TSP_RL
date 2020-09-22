@@ -3,7 +3,7 @@ from data_manager import data_manager
 from environment import environment, min_path, bnb1, EnvSpecs, EnvType, job_shop_scheduling, js_LSTM
 from randomness import randomness, ExplorationSensitivity
 import torch
-torch.set_num_threads(4)
+#torch.set_num_threads(4)
 import random
 import copy
 import time

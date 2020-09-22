@@ -33,8 +33,8 @@ random.seed(a=seed)
 
 #Generate random table
 data=np.array([])
-njobs=3
-nmachines=4
+njobs=10
+nmachines=9
 # for i in nmach:
 #     nmachines=i
 repetitions=10
@@ -48,7 +48,7 @@ jobsspecs = {
     RandomJobsSpecs.Seed : seed,
     RandomJobsSpecs.Repetitions: repetitions*3,
     RandomJobsSpecs.Distribution: random.gauss,
-    RandomJobsSpecs.DistParams: {"mu": 10, "sigma": 1}
+    RandomJobsSpecs.DistParams: {"mu": 100, "sigma": 10}
 }
 
 jobs, costs = gametable.table(TableType.random_jobs, jobsspecs) ##TableType.random_tree, graphspecs)
@@ -84,13 +84,13 @@ modelspecs = (nmachines*2,1,1,1) #hidden_dim, layer_dim, output_dim, layer2_dim
 
 criterion = "mse"
 optimizer = "adam"
-optspecs = { "lr" : 1e-1}#, "momentum": 0.1, "nesterov": False }
+optspecs = { "lr" : 1e-2}#, "momentum": 0.1, "nesterov": False }
 scheduler = None #"multiplicative"
 schedspecs = None #{"factor":0.85}
 
 # launch the algorithm with many repetitions
-memorylength = 10000
-nepisodes = 5000
+memorylength = 100000
+nepisodes = 10000
 memorypath = None
 stop_function = None
 
@@ -104,7 +104,7 @@ environment_specs = {
     EnvSpecs.rewardimension : modelspecs[2],
     #EnvSpecs.edges : edges.copy(),
     EnvSpecs.costs : costs.copy(),
-    EnvSpecs.prize : 1000,
+    EnvSpecs.prize : 1500,
     EnvSpecs.penalty : -1000,
     #EnvSpecs.finalpoint : nnodes-1,
     #EnvSpecs.startingpoint : 0
@@ -143,12 +143,12 @@ for plotbase in plotbasevals:
     plt.plot(plotbase)
 plt.show()
 plt.cla()
-path = '/Users/Marta/Desktop/TESI/Grafici_istanze1/'
+path = ''
 plt.savefig(path + "Istanza" + str(njobs) + "_" + str(nmachines)+"_LSTM_"+str(nepisodes)+"a"+".jpg")
 for plotbase in plotbasevals:
     plt.plot(plotbase)
 plt.plot(final_objectives,'o')
-path = '/Users/Marta/Desktop/TESI/Grafici_istanze1/'
+path = ''
 plt.savefig(path + "Istanza" + str(njobs) + "_" + str(nmachines)+"_LSTM_"+str(nepisodes)+"b"+".jpg")
 plt.show()
 plt.cla()
@@ -183,7 +183,7 @@ Loss_fin=stats[nepisodes-1]["Loss_fin"]
 #%%
 plt.plot(gaps)
 plt.plot(bottom)
-path = '/Users/Marta/Desktop/TESI/Grafici_istanze1/'
+path = ''
 plt.savefig(path + "Istanza" + str(njobs) + "_" + str(nmachines)+"_LSTM_"+str(nepisodes)+"c"+".jpg")
 plt.show()
 plt.cla()
@@ -205,7 +205,7 @@ for rep in range(repetitions*2):
 odx, ody = test(balgo, testcosts, noperations*2, basevals, basetimes)
 print(odx, ody)
 plt.scatter(x=odx, y=ody)
-path = '/Users/Marta/Desktop/TESI/Grafici_istanze1/'
+path = ''
 plt.savefig(path + "Istanza" + str(njobs) + "_" + str(nmachines)+"LSTM_"+str(nepisodes)+"d"+".jpg")
 plt.show()
 plt.cla()
@@ -245,7 +245,7 @@ data=data.reshape(-1,8)
 data1=data1.reshape(-1,4)
 df1 = pd.DataFrame(data, columns=columns)
 df2 = pd.DataFrame(data1, columns=columns1)
-dftot=pd.concat([df1,df2], axis=0)
+dftot=pd.concat([df1,df2], axis=0, sort=False)
 #df.append(dftot)
-dftot.to_excel("C:/Users/Marta/Desktop/TESI/Stat2.xlsx", index=False, header=True)
+dftot.to_excel("Stat2.xlsx", index=False, header=True)
 #dftot.to_csv("C:/Users/Marta/Desktop/TESI/Stat.csv", index=False, header=True)

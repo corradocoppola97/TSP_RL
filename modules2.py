@@ -148,9 +148,9 @@ class LstmModel(BasicModel): #o NNmodule
         output_dim = specs[2]
         layer2_dim = specs[3]
         self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim, batch_first=True)
-        self.lstm2 = nn.LSTM(hidden_dim, hidden_dim*4, layer2_dim, batch_first=True)
+        self.lstm2 = nn.LSTM(hidden_dim, hidden_dim*2, layer2_dim, batch_first=True, bidirectional = True)
         #self.out = nn.Linear(hidden_dim, output_dim)
-        self.network = nn.Linear(hidden_dim*4, output_dim)
+        #self.network = nn.Linear(hidden_dim*2, output_dim)
 
         self.network = nn.Sequential(
             nn.Linear(hidden_dim*4,hidden_dim*3),
@@ -190,12 +190,12 @@ class LstmModel(BasicModel): #o NNmodule
           #  if bsize == 32:
                 #print('lsout', lsout)
             #i += 1
-            h0 = torch.zeros(self.layer_dim, 1, self.hidden_dim*4).requires_grad_()
-            c0 = torch.zeros(self.layer_dim, 1, self.hidden_dim*4).requires_grad_()  # todo fix the sizes in order to take into account mini-batches
+            h0 = torch.zeros(2*self.layer_dim, 1, self.hidden_dim*2).requires_grad_()
+            c0 = torch.zeros(2*self.layer_dim, 1, self.hidden_dim*2).requires_grad_()  # todo fix the sizes in order to take into account mini-batches
 
             out2, (hn, cn) = self.lstm2(lsout, (h0.detach(), c0.detach()))
-            inp = out2[:,-1,:].reshape(-1)
-            #inp = torch.sum(out2, axis=1)
+            #inp = out2[:,-1,:].reshape(-1)
+            inp = torch.sum(out2, axis=1).reshape(-1)
             #inp = inp.reshape(-1)
           #  if bsize == 32:
                 #print('inp', inp)
