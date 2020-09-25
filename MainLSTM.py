@@ -34,10 +34,10 @@ random.seed(a=seed)
 #Generate random table
 data=np.array([])
 njobs=10
-nmachines=9
+nmachines=4
 # for i in nmach:
 #     nmachines=i
-repetitions=10
+repetitions=3
 
 nmachines=int(nmachines)
 njobs=int(njobs)
@@ -84,7 +84,7 @@ modelspecs = (nmachines*2,1,1,1) #hidden_dim, layer_dim, output_dim, layer2_dim
 
 criterion = "mse"
 optimizer = "adam"
-optspecs = { "lr" : 1e-2}#, "momentum": 0.1, "nesterov": False }
+optspecs = { "lr" : 1e-4}#, "momentum": 0.1, "nesterov": False }
 scheduler = None #"multiplicative"
 schedspecs = None #{"factor":0.85}
 
@@ -104,7 +104,7 @@ environment_specs = {
     EnvSpecs.rewardimension : modelspecs[2],
     #EnvSpecs.edges : edges.copy(),
     EnvSpecs.costs : costs.copy(),
-    EnvSpecs.prize : 1500,
+    EnvSpecs.prize : 1100,
     EnvSpecs.penalty : -1000,
     #EnvSpecs.finalpoint : nnodes-1,
     #EnvSpecs.startingpoint : 0
@@ -131,7 +131,7 @@ stats = balgo.solve(repetitions= repetitions,
                randomness = randomness(r0=1, rule=ExplorationSensitivity.linear_threshold, threshold=0.02, sensitivity=0.999),
                batchsize = 32,
                maximumiter = noperations*2,
-               steps = 1,
+               steps = 0,
                backcopy=30)
 
 #print(stats)

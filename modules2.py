@@ -148,16 +148,16 @@ class LstmModel(BasicModel): #o NNmodule
         output_dim = specs[2]
         layer2_dim = specs[3]
         self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim, batch_first=True)
-        self.lstm2 = nn.LSTM(hidden_dim, hidden_dim*2, layer2_dim, batch_first=True, bidirectional = True)
+        self.lstm2 = nn.LSTM(hidden_dim, hidden_dim*2, layer2_dim, batch_first=True)#, bidirectional = True)
         #self.out = nn.Linear(hidden_dim, output_dim)
         #self.network = nn.Linear(hidden_dim*2, output_dim)
 
         self.network = nn.Sequential(
-            nn.Linear(hidden_dim*4,hidden_dim*3),
+            nn.Linear(hidden_dim*2,hidden_dim*2),
             nn.ReLU(),
-            nn.Linear(hidden_dim*3,hidden_dim*2),
+            nn.Linear(hidden_dim*2,hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim*2, output_dim)
+            nn.Linear(hidden_dim, output_dim)
         )
 
         self.layer_dim = layer_dim
@@ -166,45 +166,48 @@ class LstmModel(BasicModel): #o NNmodule
 
     def forward(self, xx, bsize = 0):
         if bsize == 0:
-             bsize = 1
              xx=[xx]
-        out_m = torch.zeros((bsize))
-       # pippo = torch.zeros((bsize, len(xx[0]), self.hidden_dim))
-        for j in range(bsize):
-            x=xx[j]
-            lsout = torch.zeros((1, len(x), self.hidden_dim))
-            x = [torch.as_tensor(xi).type(torch.FloatTensor) for xi in x]
-            #x_lengths = [len(job) for job in x]
-            x = pad_sequence(x, batch_first = True, padding_value = 0)
-           # if bsize== 32:
-               # print('x',x)
-            #inp = pack_padded_sequence(x, x_lengths, batch_first=True, enforce_sorted=False)
-            h0 = torch.zeros(self.layer_dim, len(x), self.hidden_dim).requires_grad_()
-            c0 = torch.zeros(self.layer_dim, len(x), self.hidden_dim).requires_grad_()
-            out, (hn, cn) = self.lstm(x, (h0.detach(), c0.detach()))
-          #  if bsize==32:
-               # print('out', out)
-            #out1, input_size=pad_packed_sequence(out, batch_first=True)
-            #out1.size() = [numero batch = numero jobs, seq_max = massimo numero di macchine, hidden_dim)
-            lsout[0] = out[:, -1, :]
-          #  if bsize == 32:
-                #print('lsout', lsout)
-            #i += 1
-            h0 = torch.zeros(2*self.layer_dim, 1, self.hidden_dim*2).requires_grad_()
-            c0 = torch.zeros(2*self.layer_dim, 1, self.hidden_dim*2).requires_grad_()  # todo fix the sizes in order to take into account mini-batches
+        megapad = [torch.tensor(xxxi).type(torch.FloatTensor) for xxi in xx for xxxi in xxi]
+        lens0 = [len(m) for m in xx]
+        megapad = pad_sequence(megapad, batch_first=True)
+        megapad = [[megapad[i].numpy() for i in range(sum(lens0[h] for h in range(k)), sum(lens0[h] for h in range(k + 1)))] for k in range(len(lens0))]
+        megapad = [torch.tensor(minipad).type(torch.FloatTensor) for minipad in megapad]
+        megapad = pad_sequence(megapad, batch_first=True)
+        minibatch = torch.zeros((megapad.size(0),  megapad.size(1), self.hidden_dim ))
+        for i in range(megapad.size(1)):
+            inp = megapad[:,i]
+            out = self.lstm(inp)[0]  # , (h0.detach(), c0.detach()))
+            minibatch[:,i] = out[:,-1]#torch.sum(out, axis=1)  # out[:,-1,:]
+        out = self.lstm2(minibatch)[0]  # , (h0.detach(), c0.detach()))
+        out = self.network(torch.sum(out, axis=1))  # out[:,-1,:])
+        return out
 
-            out2, (hn, cn) = self.lstm2(lsout, (h0.detach(), c0.detach()))
-            #inp = out2[:,-1,:].reshape(-1)
-            inp = torch.sum(out2, axis=1).reshape(-1)
-            #inp = inp.reshape(-1)
-          #  if bsize == 32:
-                #print('inp', inp)
-            out = self.network(inp)
-            out_m[j] = out #.detach()
-      #  if bsize==32:
-        #   print('out_m', out_m)
 
-        return out_m
+
+
+        #
+        # if bsize == 0:
+        #      bsize = 1
+        #      xx=[xx]
+        # out_m = torch.zeros((bsize))
+        #
+        # for j in range(bsize):
+        #     x=xx[j]
+        #     lsout = torch.zeros((1, len(x), self.hidden_dim))
+        #     x = [torch.as_tensor(xi).type(torch.FloatTensor) for xi in x]
+        #     x = pad_sequence(x, batch_first = True, padding_value = 0)
+        #     h0 = torch.zeros(self.layer_dim, len(x), self.hidden_dim).requires_grad_()
+        #     c0 = torch.zeros(self.layer_dim, len(x), self.hidden_dim).requires_grad_()
+        #     out, (hn, cn) = self.lstm(x, (h0.detach(), c0.detach()))
+        #     lsout[0] = out[:, -1, :]
+        #     h0 = torch.zeros(self.layer_dim, 1, self.hidden_dim*2).requires_grad_()
+        #     c0 = torch.zeros(self.layer_dim, 1, self.hidden_dim*2).requires_grad_()  # todo fix the sizes in order to take into account mini-batches
+        #     out2, (hn, cn) = self.lstm2(lsout, (h0.detach(), c0.detach()))
+        #     inp = torch.sum(out2, axis=1).reshape(-1)
+        #
+        #     out = self.network(inp)
+        #     out_m[j] = out
+        # return out_m
 
 class GraphCNN(BasicModel):
     def __init__(self, D_in,edges, nnodes,specs):
