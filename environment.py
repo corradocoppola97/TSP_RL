@@ -86,7 +86,7 @@ class js_LSTM(environment):
 
     def set_instance(self, rep, testcosts=None):
         if testcosts is None:
-            self._linear_reward = [{key: -self._costs[rep][i][key] + 0.0 for key in self._costs[rep][i].keys()} for i in range(len(self._costs[0]))]
+            self._linear_reward = [{key: -self._costs[rep][i][key] + .0 for key in self._costs[rep][i].keys()} for i in range(len(self._costs[0]))]
             self._proc_times = [list(self._costs[rep][i].values()) for i in range(len(self._costs[rep]))]
         else:
             self._linear_reward = [{key: -testcosts[rep][i][key] + 0.0 for key in testcosts[rep][i].keys()} for i in range(len(testcosts[0]))]
