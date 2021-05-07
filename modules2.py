@@ -7,6 +7,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.nn.utils.rnn import pack_padded_sequence
 from torch.nn.utils.rnn import pad_packed_sequence
 import math
+import torch.nn.functional as F
 
 #special layer
 class LogSumExp(nn.Module):
@@ -118,7 +119,7 @@ class CoreModel(BasicModel):
         for i in range(self.depth):
             self._codify_layers(i, specs, mB = True)
         self.layers = nn.ModuleList(self.layers)
-        print(self.layers)
+        #print(self.layers)
 
     def forward(self, x):
         y_pred = self.layers[0](x)
@@ -136,7 +137,7 @@ class CoreModel(BasicModel):
                 y_predB = self.specialLayer2(y_predB)
                 y_predB = self.specialLayer3(y_predB)
                 y_pred = torch.cat((y_predA,y_predB), dim = 1)
-        print(y_pred)
+        #print(y_pred)
         return y_pred
 
 class LstmModel(BasicModel): #o NNmodule
@@ -246,6 +247,7 @@ class GraphCNN(BasicModel):
         #print(self.layers)
 
     def forward(self, x):
+        x = x.float()
         # self.layers[0].weight = nn.Parameter(self.layers[0].weight*self.special_incidence)
         y_pred = self.layers[0](x)
         for i in range(1, self.depth - 1):
@@ -265,3 +267,263 @@ class GraphCNN(BasicModel):
             self.layers[self.depth-1].weight = nn.Parameter(self.layers[self.depth-1].weight * self.special_incidence_transpose)
         y_pred = self.layers[self.depth-1](y_pred)
         return y_pred
+
+class Basic_CNN(nn.Module):
+
+    def __init__(self,D_input):
+        super(Basic_CNN,self).__init__()
+        self.D_input = D_input
+        self.fc1 = nn.Linear(self.D_input,self.D_input*2) #[1,16,16]
+        #self.conv1 = nn.Conv2d(1,10,3,stride=1,padding=1) #[10,16,16] -> [10,8,8]
+        #self.conv2 = nn.Conv2d(10,20,3,stride=1,padding=1) #[20,8,8] -> [20,4,4]
+        self.fc2 = nn.Linear(self.D_input*2,self.D_input)
+        self.fc3 = nn.Linear(self.D_input,1)
+        #self.fc4 = nn.Linear(50,10)
+        #self.fc5 = nn.Linear(10,1)
+        self.RL1 = nn.ReLU()
+        self.RL2 = nn.ReLU()
+
+
+    def forward(self,x):
+        x = x.float()
+        x = self.RL1(self.fc1(x))
+        #x = F.sigmoid(x)
+        # = x.view(-1,1,16,16)
+        #x = F.avg_pool2d(self.conv1(x),kernel_size=(2,2))
+        #x = F.avg_pool2d(self.conv2(x),kernel_size=(2,2))
+        #x = x.view(-1,20*4*4)
+        x = self.RL2(self.fc2(x))
+        x = self.fc3(x)
+        #x = F.sigmoid(self.fc4(x))
+        #x = self.fc5(x)
+        return x
+
+class TSP_Model(nn.Module):
+
+    def __init__(self,edges,nnodes,batchsize,mod_layers):
+        super(TSP_Model,self).__init__()
+        self.layers_CNNst = mod_layers['CNNst']
+        self.layers_CNNst1 = mod_layers['CNNst1']
+        self.layers_MLP = mod_layers['MLP']
+        self.foc = self.layers_CNNst[-1].out_channels
+        self.maxout_CNNst = int((nnodes+1)**2)
+        self.maxout_CNNst1 = int((nnodes)**2)
+        self.fixed_dim = self.maxout_CNNst1 + self.maxout_CNNst + self.layers_MLP[-1].out_features
+        self.layers_encoder = mod_layers['encoder']
+        self.action_dim = len(edges)
+        self.conv_st = CNN_st(layers=self.layers_CNNst)
+        self.conv_st1 = self.conv_st
+        self.ffn = MLP(layers=self.layers_MLP)
+        self.encoder = Encoder(layers=self.layers_encoder)
+        self.bs = batchsize
+
+
+    def forward(self,inst_batch):
+        outputs = None
+        #print(len(inst_batch))
+        #print(len(inst_batch))
+        for j in range(self.bs):
+            inst = inst_batch[j]
+            #print(inst)
+            if len(inst)==6:
+                at,st,st1 = inst[5],inst[3],inst[4] #[0,0,0,0,1,0,0,0,0] <---> at.index(1) e ottengo indice arco
+                st = torch.as_tensor(st).float()
+                at = torch.as_tensor(at).float()
+                st1 = torch.as_tensor(st1).float()
+            elif len(inst)==3:
+                st,at,st1 = inst[0],inst[1],inst[2]
+            #print(st.shape, at.shape, st1.shape)
+            out_st = self.conv_st(st)
+            #print(out_st.shape)
+            out_at = self.ffn(at)
+            #print(out_at.shape)
+            out_st1 = self.conv_st1(st1)
+            out_st = out_st.view(self.foc,out_st.shape[2],out_st.shape[3])
+            out_st1 = out_st1.view(self.foc, out_st1.shape[2], out_st1.shape[3])
+            out_st = torch.sum(out_st,axis=0).flatten()
+            out_st1 = torch.sum(out_st1,axis=0).flatten()
+            #out_st = out_st.flatten()
+            #out_st1 = out_st1.flatten()
+            st_shape, st1_shape = out_st.shape[0], out_st1.shape[0]
+            if st_shape<self.maxout_CNNst:
+                out_st = torch.cat((out_st,torch.zeros(self.maxout_CNNst-st_shape)))
+            if st1_shape<self.maxout_CNNst1:
+                out_st1 = torch.cat((out_st1,torch.zeros(self.maxout_CNNst1-st1_shape)))
+            input_encoder = torch.cat((out_st,out_at,out_st1))
+            #Concatena per output di ciascuna rete rispetto a dimensione massima uscita
+            out = self.encoder(input_encoder)
+            if outputs is None:
+                outputs = out
+            else:
+                outputs = torch.cat((outputs,out))
+
+
+        #print(out)
+        return out
+
+class TSP_Model_bis(nn.Module):
+
+    def __init__(self,edges,nnodes,batchsize,mod_layers):
+        super(TSP_Model_bis,self).__init__()
+        self.layers = mod_layers
+        self.bs = batchsize
+        self.maxout = int(nnodes + 1 + (nnodes+1)**2 + nnodes**2)
+        self.maxSt = int((nnodes+1)**2)
+        self.maxSt1 = int(nnodes**2)
+
+    def forward(self,inst_batch):
+        outputs = None
+        for j in range(self.bs):
+            inst = inst_batch[j]
+            # print(inst)
+            if len(inst)==6:
+                at, st, st1 = inst[5], inst[3], inst[4]  # [0,0,0,0,1,0,0,0,0] <---> at.index(1) e ottengo indice arco
+                st = torch.as_tensor(st).float()
+                at = torch.as_tensor(at).float()
+                st1 = torch.as_tensor(st1).float()
+            elif len(inst)==3:
+                st, at, st1 = inst[0], inst[1], inst[2]
+
+            st = st.flatten()
+            st1 = st1.flatten()
+            st_shape, st1_shape = st.shape[0], st1.shape[0]
+            if st_shape < self.maxSt:
+                st = torch.cat((st,torch.zeros(self.maxSt-st_shape)))
+            if st1_shape < self.maxSt1:
+                st1 = torch.cat((st1,torch.zeros(self.maxSt1-st1_shape)))
+
+            input_en = torch.cat((st,at,st1)).float()
+            out = self.layers(input_en)
+            if outputs is None:
+                outputs = out
+            else:
+                outputs = torch.cat((outputs,out))
+        return outputs
+
+
+
+class CNN_st(nn.Module):
+
+    def __init__(self,layers):
+        super(CNN_st,self).__init__()
+        self.layers = layers
+
+    def forward(self,x):
+        x = x.float()
+        dim_in = x.shape[0]
+        #print('xsh', x.shape)
+        #print(x)
+        x = x.view(-1,1,dim_in,dim_in)
+        out = self.layers(x)
+        return out
+
+class CNN_st1(nn.Module):
+
+    def __init__(self,layers):
+        super(CNN_st1,self).__init__()
+        self.layers = layers
+
+    def forward(self,x):
+        x = x.float()
+        dim_in = x.shape[0]
+        x = x.view(-1,1,dim_in,dim_in)
+        out = self.layers(x)
+        return out
+
+
+class Encoder(nn.Module):
+
+    def __init__(self,layers):
+        super(Encoder,self).__init__()
+        self.layers = layers
+        #d = dim_in
+        #neurons = [d]
+        #while d>=10:
+            #d = d//2
+            #neurons.append(d)
+
+        #self.layers = nn.Sequential()
+        #for j in range(len(neurons)-1):
+            #fc = nn.Linear(neurons[j],neurons[j+1])
+            #self.layers.add_module('fc'+str(j+1),fc)
+            #self.layers.add_module('F'+str(j+1),nn.Sigmoid())
+
+        #self.layers.add_module('fcf', nn.Linear(neurons[len(neurons)-1],1))
+
+    def forward(self,x):
+        x = x.float()
+        #print(self.layers)
+        out = self.layers(x)
+        return out
+
+
+class MLP(nn.Module):
+
+    def __init__(self,layers):
+        super(MLP,self).__init__()
+        self.layers = layers
+
+    def forward(self,x):
+        x = x.float()
+        out = self.layers(x)
+        return out
+
+class Actor(nn.Module):
+
+    def __init__(self,conv_layers,fc_layers,maskdim):
+        super(Actor,self).__init__()
+        self.conv_layers = conv_layers
+        self.fc_layers = fc_layers
+        self.maxout = fc_layers[0].in_features
+        self.maskdim = maskdim
+
+    def no_zero_softmax(self,x):
+        x_no_zero = x[x!=0]
+        xsof = x_no_zero.softmax(0)
+        k = 0
+        for j in range(x.shape[0]):
+            if x[j]!=0:
+                x[j] = xsof[k]
+                k+=1
+        return x
+
+    def forward(self,x,mask):
+        x = x.float()
+        #x = x.clone()
+        x = self.conv_layers(x)
+        x = x.flatten()
+        xs = x.shape[0]
+        if xs<self.maxout:
+            x = torch.cat((x,torch.zeros(self.maxout-xs)))
+        x = self.fc_layers(x)
+        x = x[mask]
+        x = x.softmax(0)
+        return x
+
+class Critic(nn.Module):
+
+    def __init__(self,conv_layers,fc_layers):
+        super(Critic,self).__init__()
+        self.conv_layers = conv_layers
+        self.fc_layers = fc_layers
+        self.maxout = fc_layers[0].in_features
+
+    def forward(self,x):
+        x = x.float()
+        x = x.clone()
+        x = self.conv_layers(x)
+        x = x.flatten()
+        xs = x.shape[0]
+        if xs<self.maxout:
+            x = torch.cat((x,torch.zeros(self.maxout-xs)))
+        x = self.fc_layers(x)
+        return x
+
+
+
+
+
+
+
+
+

@@ -19,10 +19,19 @@ class data_manager():
 
     def add(self, instancex, instancey):
         self._length += 1
+        #print(type(self._memoryx))
+        #print(self._memoryx)
+        #print(type(self._memoryy))
+        #print(self._memoryy)
         if self._length <= self._stacklength:
+            #print('X',type(instancex))
+            #print('Y',type(float(instancey)))
+            #print(len(self._memoryy))
+            #print(len(self._memoryx))
             self._memoryx.append(instancex)
             self._memoryy.append(instancey)
         else:
+            #print('MEMORIA PIENA')
             ind = self._length % self._stacklength
             self._memoryx[ind] = instancex
             self._memoryy[ind] = instancey
@@ -49,6 +58,8 @@ class data_manager():
             self._stacklength = newlength
     def size(self):
         return self._length/self._stacklength
+
+
 
 
 
