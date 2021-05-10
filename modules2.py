@@ -477,28 +477,26 @@ class Actor(nn.Module):
         self.maxout = fc_layers[0].in_features
         self.maskdim = maskdim
 
-    def no_zero_softmax(self,x):
-        x_no_zero = x[x!=0]
-        xsof = x_no_zero.softmax(0)
-        k = 0
-        for j in range(x.shape[0]):
-            if x[j]!=0:
-                x[j] = xsof[k]
-                k+=1
-        return x
 
-    def forward(self,x,mask):
-        x = x.float()
-        #x = x.clone()
-        x = self.conv_layers(x)
-        x = x.flatten()
-        xs = x.shape[0]
-        if xs<self.maxout:
-            x = torch.cat((x,torch.zeros(self.maxout-xs)))
-        x = self.fc_layers(x)
-        x = x[mask]
-        x = x.softmax(0)
-        return x
+    def forward(self,x,mask_list):
+        bs = len(x)
+        out = []
+        for j in range(bs):
+            #print(bs)
+            #print(x[j].shape)
+            ns = x[j].shape[1]
+            xj = torch.as_tensor(x[j]).float()
+            xj = xj.view(-1,1,ns,ns)
+            xj = self.conv_layers(xj)
+            xj = xj.flatten()
+            xs_j = xj.shape[0]
+            if xs_j<self.maxout:
+                xj = torch.cat((xj,torch.zeros(self.maxout-xs_j)))
+            xj = self.fc_layers(xj)
+            xj = xj[mask_list[j]]
+            xj = xj.softmax(0)
+            out.append(xj)
+        return out
 
 class Critic(nn.Module):
 
@@ -509,15 +507,21 @@ class Critic(nn.Module):
         self.maxout = fc_layers[0].in_features
 
     def forward(self,x):
-        x = x.float()
-        x = x.clone()
-        x = self.conv_layers(x)
-        x = x.flatten()
-        xs = x.shape[0]
-        if xs<self.maxout:
-            x = torch.cat((x,torch.zeros(self.maxout-xs)))
-        x = self.fc_layers(x)
-        return x
+        bs = len(x)
+        out = []
+        for j in range(bs):
+            #print(x[j].shape)
+            ns = x[j].shape[1]
+            xj = torch.as_tensor(x[j]).float()
+            xj = xj.view(-1,1,ns,ns)
+            xj = self.conv_layers(xj)
+            xj = xj.flatten()
+            xj_s = xj.shape[0]
+            if xj_s<self.maxout:
+                xj = torch.cat((xj,torch.zeros(self.maxout-xj_s)))
+            xj = self.fc_layers(xj)
+            out.append(xj)
+        return out
 
 
 

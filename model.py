@@ -98,49 +98,64 @@ class PPG_Model():
 
 
 
-    def Loss_actor(self,p_old,p,adv):
-        eps = self.eps
-        beta = self.beta
-        ratio = p/p_old
-        f1 = ratio*adv
-        f2 = (ratio.clamp(1-eps,1+eps))*adv
-        ob = torch.min(f1,f2)
-        Lclip = torch.mean(ob)
-        entropy = torch.distributions.Categorical(p).entropy() #Todo controllare entropia
-        loss_actor = Lclip + beta*entropy
-        return -loss_actor
+    def Loss_actor(self,old_probs,probs,act_ind,advantages):
+        batch_size = len(probs)
+        loss = torch.empty(size=(batch_size,))
+        for j in range(batch_size):
+            probs_j = probs[j]
+            old_probs_j = old_probs[j]
+            ind_j = act_ind[j] # indice azione compiuta a j nella traiettoria
+            ratio_j = probs_j[ind_j]/old_probs_j[ind_j]
+            surr1 = ratio_j*advantages[j]
+            surr2 = ratio_j.clamp(0.8,1.2)*advantages[j]
+            dist = torch.distributions.Categorical(probs_j)
+            entropy = dist.entropy()
+            loss_j = torch.min(surr1,surr2)+self.beta*entropy
+            loss[j] = loss_j
 
-    def Loss_value(self,st,Vtarg):
+        return -torch.mean(loss)
+
+    def Loss_critic(self,v_pred,v_target):
         l_value = nn.MSELoss()
-        V_pred = self.critic(st)
-        return -l_value(Vtarg,V_pred)
+        return l_value(v_pred,v_target)
 
-    def Loss_joint(self,p_old,p,Vtarg,Vpred):
+    def Loss_joint(self,v_pred,v_target,old_probs,probs,bs):
         mse = nn.MSELoss()
         kl = nn.KLDivLoss()
-        loss_aux = mse(Vtarg,Vpred)
-        return -(loss_aux + self.beta_c*kl(p,p_old))
+        KL = torch.empty(size=(bs,))
+        values_pred_tensor = torch.empty(size=(bs,))
+        for j in range(bs):
+            #print(old_probs[0])
+            old_probs_j = old_probs[j]
+            probs_j = probs[j]
+            KL[j] = kl(old_probs_j,probs_j)
+            values_pred_tensor[j] = v_pred[j]
+
+        L_aux = self.Loss_critic(values_pred_tensor,torch.as_tensor(v_target))
+
+        return L_aux, L_aux + self.beta_c*torch.mean(KL)
 
     def set_loss(self):
-        self.loss_critic = self.Loss_value
+        self.loss_critic = self.Loss_critic
         self.loss_actor = self.Loss_actor
 
     def set_optim(self):
         self.opt_actor = torch.optim.Adam(self.actor.parameters(),lr=self.lr_actor)
         self.opt_critic = torch.optim.Adam(self.critic.parameters(),lr=self.lr_critic)
 
-    def update_actor(self,p_old,p,adv):
+    def update_actor(self,old_probs,probs,act_ind,advantages):
         self.opt_actor.zero_grad()
-        lossactor = self.loss_actor(p_old,p,adv)
-        lossactor.backward()
+        loss = self.Loss_actor(old_probs,probs,act_ind,advantages)
+        loss.backward(retain_graph=True)
         self.opt_actor.step()
-        #print(lossactor)
-        return lossactor
+        return loss
 
-    def update_critic(self,st,V_target):
+    def update_critic(self,v_pred,v_target):
         self.opt_critic.zero_grad()
-        self.loss_critic(st,V_target).backward()
+        loss = self.loss_critic(v_pred,v_target)
+        loss.backward()
         self.opt_critic.step()
+        return loss
 
 
 

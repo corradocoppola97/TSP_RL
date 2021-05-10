@@ -13,7 +13,7 @@ from support import baseline_ortools
 torch.set_num_threads(4)
 nnodes = 15
 nedges = nnodes*(nnodes-1)
-repetitions = 10
+repetitions = 1
 
 graphspecs = {
     RandomGraphSpecs.Nnodes : nnodes,
@@ -56,24 +56,28 @@ specsActor['fc_layers'] = nn.Sequential(nn.Linear(maxfcL,300),nn.ReLU(),
                                         nn.Linear(50,nnodes+1))
 
 specsActor['eps'] = 0.2
-specsActor['beta'] = 1
+specsActor['beta'] = 0.01
 specsActor['beta_c'] = 1
-specsActor['lr'] = 5e-3
+specsActor['lr'] = 5e-4
 specsActor['maskdim'] = nnodes+1
 
-specsCritic['conv_layers'] = specsActor['conv_layers']
+specsCritic['conv_layers'] = nn.Sequential(nn.Conv2d(1,8,3,stride=1,padding=1),nn.ReLU(),
+                                            nn.Conv2d(8,32,3,stride=1,padding=1),nn.ReLU(),
+                                            nn.Conv2d(32,64,3,stride=1,padding=1))
 specsCritic['fc_layers'] = nn.Sequential(nn.Linear(maxfcL,300),nn.ReLU(),
                                         nn.Linear(300,50),nn.ReLU(),
                                         nn.Linear(50,1))
-specsCritic['lr'] = 5e-3
+specsCritic['lr'] = 5e-4
 
 gatto = ppg(phases=1,policy_iterations=10,
     specsActor=specsActor,
     specsCritic=specsCritic,
-    E_policy=100,
-    E_value=10,
-    E_aux=10,
-    stacklenght=10000,
-    seed=1)
+    E_policy=1000,
+    E_value=20,
+    E_aux=5,
+    stacklenght=50000,
+    seed=1,
+    batchsize=15)
 
 ppg_al = gatto.PPG_algo(environment_specs)
+
