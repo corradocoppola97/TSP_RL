@@ -56,7 +56,7 @@ specsActor['fc_layers'] = nn.Sequential(nn.Linear(maxfcL,300),nn.ReLU(),
                                         nn.Linear(50,nnodes+1))
 
 specsActor['eps'] = 0.2
-specsActor['beta'] = 0.01
+specsActor['beta'] = 5
 specsActor['beta_c'] = 1
 specsActor['lr'] = 5e-4
 specsActor['maskdim'] = nnodes+1
@@ -64,20 +64,20 @@ specsActor['maskdim'] = nnodes+1
 specsCritic['conv_layers'] = nn.Sequential(nn.Conv2d(1,8,3,stride=1,padding=1),nn.ReLU(),
                                             nn.Conv2d(8,32,3,stride=1,padding=1),nn.ReLU(),
                                             nn.Conv2d(32,64,3,stride=1,padding=1))
-specsCritic['fc_layers'] = nn.Sequential(nn.Linear(maxfcL,300),nn.ReLU(),
-                                        nn.Linear(300,50),nn.ReLU(),
+specsCritic['fc_layers'] = nn.Sequential(nn.Linear(maxfcL,1000),nn.ReLU(),nn.Linear(1000,300),nn.ReLU(),nn.Linear(300,150),nn.ReLU(),
+                                        nn.Linear(150,50),nn.ReLU(),
                                         nn.Linear(50,1))
 specsCritic['lr'] = 5e-4
 
-gatto = ppg(phases=1,policy_iterations=10,
+gatto = ppg(phases=10,policy_iterations=1,
     specsActor=specsActor,
     specsCritic=specsCritic,
-    E_policy=1000,
-    E_value=20,
-    E_aux=5,
+    E_policy=20,
+    E_value=1,
+    E_aux=20,
     stacklenght=50000,
     seed=1,
-    batchsize=15)
+    batchsize=nnodes+1,
+    exper=10)
 
 ppg_al = gatto.PPG_algo(environment_specs)
-
