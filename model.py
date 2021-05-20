@@ -132,6 +132,7 @@ class PPG_Model():
             values_pred_tensor[j] = v_pred[j]
 
         L_aux = self.Loss_critic(values_pred_tensor,torch.as_tensor(v_target))
+        #print('KL_media = ',torch.mean(KL))
 
         return L_aux, L_aux + self.beta_c*torch.mean(KL)
 

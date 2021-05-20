@@ -157,11 +157,23 @@ class baseline():
         return self.cpmod.objective_value, sol, end-start
 
 class baseline_ortools():
-    def __init__(self,dis_m):
-        self.dataset = dis_m
+    def __init__(self,dis_m,n):
+        D = []
+        m = len(dis_m)
+        for j in range(m):
+            dataset = [[0 for _ in range(n)] for __ in range(n)]
+            costs = dis_m[j]
+            for edge in costs:
+                i,j = edge
+                dataset[i][j] = costs[edge]
+                dataset[j][i] = costs[edge]
+            D.append(dataset)
+        self.dataset = D
+
+
 
     def risolvi_problema(self,n, data):
-        print('data',data)
+        #print('data',data)
         data = {'distance_matrix':data,'num_vehicles':1,'depot':0}
         manager = pywrapcp.RoutingIndexManager(len(data['distance_matrix']), data['num_vehicles'], data['depot'])
         routing = pywrapcp.RoutingModel(manager)

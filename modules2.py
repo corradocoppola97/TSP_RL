@@ -1,5 +1,5 @@
 import torch
-torch.set_num_threads(4)
+#torch.set_num_threads(4)
 from torch import nn
 from torch.nn.parameter import Parameter
 from torch.nn import init
@@ -8,7 +8,7 @@ from torch.nn.utils.rnn import pack_padded_sequence
 from torch.nn.utils.rnn import pad_packed_sequence
 import math
 import torch.nn.functional as F
-
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 #special layer
 class LogSumExp(nn.Module):
     def __init__(self,in_features, out_features,bias = False):
@@ -40,8 +40,6 @@ class LogSumExp(nn.Module):
             pW = torch.stack([torch.stack([self.weight[i] * torch.as_tensor([x[b][ll] for ll in range(self.n)]) for b in range(B)]) for i in range(self.N)])
             ret = torch.logsumexp(pW, dim=2).transpose(0,1)
         return ret
-
-
 
 
 #superclass for the model that can be used inside the algorithm
@@ -400,8 +398,6 @@ class TSP_Model_bis(nn.Module):
                 outputs = torch.cat((outputs,out))
         return outputs
 
-
-
 class CNN_st(nn.Module):
 
     def __init__(self,layers):
@@ -430,7 +426,6 @@ class CNN_st1(nn.Module):
         out = self.layers(x)
         return out
 
-
 class Encoder(nn.Module):
 
     def __init__(self,layers):
@@ -455,7 +450,6 @@ class Encoder(nn.Module):
         #print(self.layers)
         out = self.layers(x)
         return out
-
 
 class MLP(nn.Module):
 
