@@ -11,7 +11,7 @@ from Game_GH import TableType, RandomGraphSpecs, gametable
 from TSP_ortools import risolvi_problema, print_solution
 from support import baseline_ortools
 #torch.set_num_threads(4)
-nnodes = 25
+nnodes = 10
 nedges = nnodes*(nnodes-1)
 repetitions = 1
 
