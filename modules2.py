@@ -8,7 +8,9 @@ from torch.nn.utils.rnn import pack_padded_sequence
 from torch.nn.utils.rnn import pad_packed_sequence
 import math
 import torch.nn.functional as F
+from torch_geometric.nn import GCNConv
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+import copy
 #special layer
 class LogSumExp(nn.Module):
     def __init__(self,in_features, out_features,bias = False):
@@ -40,8 +42,6 @@ class LogSumExp(nn.Module):
             pW = torch.stack([torch.stack([self.weight[i] * torch.as_tensor([x[b][ll] for ll in range(self.n)]) for b in range(B)]) for i in range(self.N)])
             ret = torch.logsumexp(pW, dim=2).transpose(0,1)
         return ret
-
-
 #superclass for the model that can be used inside the algorithm
 class BasicModel(nn.Module):
     def __init__(self):
@@ -106,7 +106,6 @@ class BasicModel(nn.Module):
             self.layers.append(nn.Softmin(spec0[1], spec[1]))
         else:
             raise Exception("Not a valid input class for the layer.")
-
 class CoreModel(BasicModel):
     def __init__(self, D_in, specs):
         super(CoreModel, self).__init__()
@@ -137,7 +136,6 @@ class CoreModel(BasicModel):
                 y_pred = torch.cat((y_predA,y_predB), dim = 1)
         #print(y_pred)
         return y_pred
-
 class LstmModel(BasicModel): #o NNmodule
     def __init__(self, input_dim, specs):
         super(LstmModel, self).__init__()
@@ -207,7 +205,6 @@ class LstmModel(BasicModel): #o NNmodule
         #     out = self.network(inp)
         #     out_m[j] = out
         # return out_m
-
 class GraphCNN(BasicModel):
     def __init__(self, D_in,edges, nnodes,specs):
         # the last element should contain D_out
@@ -265,7 +262,6 @@ class GraphCNN(BasicModel):
             self.layers[self.depth-1].weight = nn.Parameter(self.layers[self.depth-1].weight * self.special_incidence_transpose)
         y_pred = self.layers[self.depth-1](y_pred)
         return y_pred
-
 class Basic_CNN(nn.Module):
 
     def __init__(self,D_input):
@@ -515,6 +511,74 @@ class Critic(nn.Module):
                 xj = torch.cat((xj,torch.zeros(self.maxout-xj_s)))
             xj = self.fc_layers(xj)
             out.append(xj)
+        return out
+
+
+class Actor_GCN(nn.Module):
+
+    def __init__(self,emb_size,num_feat):
+        super(Actor_GCN,self).__init__()
+        self.num_feat = num_feat
+        self.emb_size = emb_size
+        self.conv1 = GCNConv(self.num_feat,emb_size)
+        self.conv2 = GCNConv(emb_size,emb_size)
+        self.conv22 = GCNConv(emb_size, emb_size)
+        self.conv3 = GCNConv(emb_size,1)
+
+    def forward(self,batch_feat,batch_edges,batch_attr):
+        bs = len(batch_feat)
+        nsb = batch_feat[0].shape[0]
+        out = []
+        for j in range(bs):
+            x, edge_ind, adj = batch_feat[j].float(), batch_edges[j], batch_attr[j]
+            mask = copy.deepcopy(x).flatten()
+            x = self.conv1(x,edge_ind,adj)
+            x = F.relu(x)
+            x = self.conv2(x,edge_ind,adj)
+            x = F.relu(x)
+            x = self.conv22(x, edge_ind, adj)
+            x = F.relu(x)
+            x = self.conv3(x,edge_ind,adj)
+
+            x = x.flatten()
+            mask = torch.as_tensor(mask,dtype=torch.bool)
+            x = x[mask].softmax(0)
+            if mask.shape[0]<=2:
+                x = torch.Tensor([1.0]).softmax(0)
+
+            out.append(x)
+
+        return out
+
+
+class Critic_GCN(nn.Module):
+
+    def __init__(self,emb_size,num_feat):
+        super(Critic_GCN,self).__init__()
+        self.num_feat = num_feat
+        self.emb_size = emb_size
+        self.conv1 = GCNConv(self.num_feat,emb_size)
+        self.conv2 = GCNConv(emb_size,emb_size)
+        self.conv3 = GCNConv(emb_size,emb_size)
+        self.linear = nn.Linear(emb_size,1)
+
+    def forward(self,batch_feat,batch_edges,batch_attr):
+        bs = len(batch_feat)
+        out = []
+        for j in range(bs):
+            x, edge_ind, adj = batch_feat[j].float(), batch_edges[j], batch_attr[j]
+            #print(x,edge_ind,adj)
+            x = self.conv1(x,edge_ind,adj)
+            x = F.relu(x)
+            x = self.conv2(x,edge_ind,adj)
+            x = F.relu(x)
+            x = F.relu(self.conv3(x,edge_ind,adj))
+            x = x.mean(0)
+            #print('X_shape',x.shape)
+            x = self.linear(x)
+            #print('x_fin',x)
+            out.append(x)
+
         return out
 
 

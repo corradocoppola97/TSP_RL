@@ -1,7 +1,7 @@
 import torch
 #torch.set_num_threads(4)
 from torch import nn
-from modules2 import CoreModel, GraphCNN, LstmModel, Basic_CNN, TSP_Model, CNN_st, CNN_st1, Encoder, MLP, TSP_Model_bis, Actor,Critic
+from modules2 import CoreModel, GraphCNN, LstmModel, Basic_CNN, TSP_Model, CNN_st, CNN_st1, Encoder, MLP, TSP_Model_bis, Actor,Critic,Actor_GCN,Critic_GCN
 
 class Model():
     def __init__(self, D_in, specs,edges,nnodes,mod_layers,LSTMflag = False, seed = None):
@@ -89,6 +89,8 @@ class PPG_Model():
                            fc_layers=specsActor['fc_layers'],maskdim=specsActor['maskdim'])
         self.critic = Critic(conv_layers=specsCritic['conv_layers'],
                               fc_layers=specsCritic['fc_layers'])
+        #self.actor = Actor_GCN(emb_size=specsActor['emb_size'],num_feat=1)
+        #self.critic = Critic_GCN(emb_size=specsCritic['emb_size'],num_feat=1)
 
         self.eps = specsActor['eps']
         self.beta = specsActor['beta']
@@ -159,6 +161,64 @@ class PPG_Model():
         return loss
 
 
+class PPO_Model():
+
+    def __init__(self, specsActor, specsCritic):
+        #self.actor = Actor(conv_layers=specsActor['conv_layers'],
+            #fc_layers=specsActor['fc_layers'], maskdim=specsActor['maskdim'])
+        #self.critic = Critic(conv_layers=specsCritic['conv_layers'],
+            #fc_layers=specsCritic['fc_layers'])
+
+        self.actor = Actor_GCN(emb_size=specsActor['emb_size'],num_feat=1)
+        self.critic = Critic_GCN(emb_size=specsCritic['emb_size'],num_feat=1)
+
+        self.eps = specsActor['eps']
+        self.lr_actor = specsActor['lr']
+        self.lr_critic = specsCritic['lr']
+        self.beta = 1
+
+    def Loss_actor(self,old_probs,probs,act_ind,advantages):
+        batch_size = len(probs)
+        loss = torch.empty(size=(batch_size,))
+        for j in range(batch_size):
+            probs_j = probs[j]
+            old_probs_j = old_probs[j]
+            ind_j = act_ind[j] # indice azione compiuta a j nella traiettoria
+            ratio_j = probs_j[ind_j]/old_probs_j[ind_j]
+            surr1 = ratio_j*advantages[j]
+            surr2 = ratio_j.clamp(0.8,1.2)*advantages[j]
+            dist = torch.distributions.Categorical(probs_j)
+            entropy = dist.entropy()
+            loss_j = torch.min(surr1,surr2)+self.beta*entropy
+            loss[j] = loss_j
+
+        return -torch.mean(loss)
+
+    def Loss_critic(self,v_pred,v_target):
+        l_value = nn.MSELoss()
+        return l_value(v_pred,v_target)
+
+    def set_loss(self):
+        self.loss_critic = self.Loss_critic
+        self.loss_actor = self.Loss_actor
+
+    def set_optim(self):
+        self.opt_actor = torch.optim.Adam(self.actor.parameters(),lr=self.lr_actor)
+        self.opt_critic = torch.optim.Adam(self.critic.parameters(),lr=self.lr_critic)
+
+    def update_actor(self,old_probs,probs,act_ind,advantages):
+        self.opt_actor.zero_grad()
+        loss = self.Loss_actor(old_probs,probs,act_ind,advantages)
+        loss.backward(retain_graph=True)
+        self.opt_actor.step()
+        return loss
+
+    def update_critic(self,v_pred,v_target):
+        self.opt_critic.zero_grad()
+        loss = self.loss_critic(v_pred,v_target)
+        loss.backward()
+        self.opt_critic.step()
+        return loss
 
 
 

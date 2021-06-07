@@ -392,6 +392,7 @@ class tsp(environment):
 
     def set_instance(self, rep, testcosts=None):
         self.incidence_matrix = self.dic_mat[rep]
+        self.current_depot = 0
         if testcosts is None:
             self._linear_reward = {key: -self._costs[rep][key] + 0.0 for key in self._costs[rep].keys()}
             #self._costlist = list(self._costs[rep].values())
@@ -408,6 +409,15 @@ class tsp(environment):
             mat_st1 = mat_st.copy()
             mat_st1[curr_node,:] = 0
             mat_st1[:,curr_node] = 0
+            nss = mat_st1.shape[0]
+            count_depot = 0
+            for j in range(nss):
+                if mat_st1[j,j] == True:
+                    count_depot += 1
+                if j==curr_node:
+                    break
+
+            self.current_depot = count_depot
             at = act
             at_OH = [0 for _ in range(self.nnodes+1)]
             at_OH[at] = 1
@@ -445,6 +455,9 @@ class tsp(environment):
             if mat_st1[at1,k]==1:
                 if k!=at1:
                     mask.append(k)
+
+
+
 
 
         pre_final = mask == []

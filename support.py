@@ -4,6 +4,8 @@ import time
 import numpy as np
 import pandas as pd
 from ortools.constraint_solver import routing_enums_pb2, pywrapcp
+import torch
+import copy
 
 
 # f = pd.read_fwf(r'C:\Users\Marta\Desktop\TESI\abz5.txt', header=None, sep='  ')
@@ -243,8 +245,51 @@ class baseline_ortools():
 
 
 
+def build_index(ns):
+    n_edges = int(ns*(ns-1))
+    tt = torch.empty(size=(2,n_edges),dtype=torch.int64)
+    k = 0
+    for i in range(ns):
+        for j in range(ns):
+            if i!=j:
+                tt[0,k] = i
+                tt[1,k] = j
+                k += 1
+    return tt
 
 
 
+def build_features(mat_st,bool_st,mat_inc,current_depot):
+    #m = torch.as_tensor(m).float()
+    #n = m.shape[0]
+    #f = []
+    #for j in range(n):
+        #riga = m[j].float()
+        #riga_1 = copy.deepcopy(riga)
+        #riga_1[j] = 1e6
+        #L = [min(riga_1).item(),max(riga).item(),torch.mean(m).item(),torch.std(m).item()]
+        #f.append(L)
+    #for j in range(mat_inc.shape[0]):
+        #if bool_st[j,node] == True or j==node or j==mat_inc.shape[0]-1:
+            #f.append(mat_inc[j,node])
+    #bs = mat_st.shape[0]
+    #return torch.Tensor(f).view(-1,1).float()
+    bs = mat_st.shape[0]
+    f = torch.ones(size=(bs,1),dtype=torch.bool)
+    f[current_depot,0] = 0
+    f[bs-1,0] = 0
+
+    return f
 
 
+def build_attr(m):
+    m = torch.as_tensor(m)
+    m1 = copy.deepcopy(m)
+    n = m.shape[0]
+    m1[0,n-1] = 1e-5
+    m1[n-1,0] = 1e-5
+    for j in range(n):
+        m1[j,j] = -1
+
+    out = m[m1 >= 0]
+    return out
