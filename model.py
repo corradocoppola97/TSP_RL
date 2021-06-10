@@ -1,7 +1,7 @@
 import torch
 #torch.set_num_threads(4)
 from torch import nn
-from modules2 import CoreModel, GraphCNN, LstmModel, Basic_CNN, TSP_Model, CNN_st, CNN_st1, Encoder, MLP, TSP_Model_bis, Actor,Critic,Actor_GCN,Critic_GCN
+from modules2 import CoreModel, GraphCNN, LstmModel, Basic_CNN, TSP_Model, CNN_st, CNN_st1, Encoder, MLP, TSP_Model_bis, Actor,Critic,Actor_GCN,Critic_GCN,Actor_GCN_base,Critic_GCN_base
 
 class Model():
     def __init__(self, D_in, specs,edges,nnodes,mod_layers,LSTMflag = False, seed = None):
@@ -84,14 +84,16 @@ class Model():
 
 class PPG_Model():
 
-    def __init__(self,specsActor,specsCritic):
-        self.actor = Actor(conv_layers=specsActor['conv_layers'],
-                           fc_layers=specsActor['fc_layers'],maskdim=specsActor['maskdim'])
-        self.critic = Critic(conv_layers=specsCritic['conv_layers'],
-                              fc_layers=specsCritic['fc_layers'])
-        #self.actor = Actor_GCN(emb_size=specsActor['emb_size'],num_feat=1)
-        #self.critic = Critic_GCN(emb_size=specsCritic['emb_size'],num_feat=1)
-
+    def __init__(self,specsActor,specsCritic,device,GCNflag):
+        self.device = device
+        if GCNflag:
+            self.actor = Actor_GCN(emb_size=specsActor['emb_size'], num_feat=1, device=self.device).to(self.device)
+            self.critic = Critic_GCN(emb_size=specsCritic['emb_size'], num_feat=1, device=self.device).to(self.device)
+        else:
+            self.actor = Actor(conv_layers=specsActor['conv_layers'],
+                fc_layers=specsActor['fc_layers'], maskdim=specsActor['maskdim'],device=self.device).to(self.device)
+            self.critic = Critic(conv_layers=specsCritic['conv_layers'],
+                fc_layers=specsCritic['fc_layers'],device=self.device).to(self.device)
         self.eps = specsActor['eps']
         self.beta = specsActor['beta']
         self.beta_c = specsActor['beta_c']
@@ -102,7 +104,7 @@ class PPG_Model():
 
     def Loss_actor(self,old_probs,probs,act_ind,advantages):
         batch_size = len(probs)
-        loss = torch.empty(size=(batch_size,))
+        loss = torch.empty(size=(batch_size,),device=self.device)
         for j in range(batch_size):
             probs_j = probs[j]
             old_probs_j = old_probs[j]
@@ -119,13 +121,13 @@ class PPG_Model():
 
     def Loss_critic(self,v_pred,v_target):
         l_value = nn.MSELoss()
-        return l_value(v_pred,v_target)
+        return l_value(v_pred.to(self.device),v_target.to(self.device))
 
     def Loss_joint(self,v_pred,v_target,old_probs,probs,bs):
         mse = nn.MSELoss()
         kl = nn.KLDivLoss()
-        KL = torch.empty(size=(bs,))
-        values_pred_tensor = torch.empty(size=(bs,))
+        KL = torch.empty(size=(bs,),device=self.device)
+        values_pred_tensor = torch.empty(size=(bs,),device=self.device)
         for j in range(bs):
             #print(old_probs[0])
             old_probs_j = old_probs[j]
@@ -163,14 +165,16 @@ class PPG_Model():
 
 class PPO_Model():
 
-    def __init__(self, specsActor, specsCritic):
-        #self.actor = Actor(conv_layers=specsActor['conv_layers'],
-            #fc_layers=specsActor['fc_layers'], maskdim=specsActor['maskdim'])
-        #self.critic = Critic(conv_layers=specsCritic['conv_layers'],
-            #fc_layers=specsCritic['fc_layers'])
-
-        self.actor = Actor_GCN(emb_size=specsActor['emb_size'],num_feat=1)
-        self.critic = Critic_GCN(emb_size=specsCritic['emb_size'],num_feat=1)
+    def __init__(self, specsActor, specsCritic, device, GCNflag):
+        self.device = device
+        if GCNflag:
+            self.actor = Actor_GCN(emb_size=specsActor['emb_size'], num_feat=1, device=self.device)
+            self.critic = Critic_GCN(emb_size=specsCritic['emb_size'], num_feat=1, device=self.device)
+        else:
+            self.actor = Actor(conv_layers=specsActor['conv_layers'],
+                fc_layers=specsActor['fc_layers'], maskdim=specsActor['maskdim'],device=self.device)
+            self.critic = Critic(conv_layers=specsCritic['conv_layers'],
+                fc_layers=specsCritic['fc_layers'],device=self.device)
 
         self.eps = specsActor['eps']
         self.lr_actor = specsActor['lr']
@@ -179,7 +183,7 @@ class PPO_Model():
 
     def Loss_actor(self,old_probs,probs,act_ind,advantages):
         batch_size = len(probs)
-        loss = torch.empty(size=(batch_size,))
+        loss = torch.empty(size=(batch_size,),device=self.device)
         for j in range(batch_size):
             probs_j = probs[j]
             old_probs_j = old_probs[j]

@@ -260,6 +260,7 @@ def build_index(ns):
 
 
 def build_features(mat_st,bool_st,mat_inc,current_depot):
+
     #m = torch.as_tensor(m).float()
     #n = m.shape[0]
     #f = []
@@ -274,11 +275,13 @@ def build_features(mat_st,bool_st,mat_inc,current_depot):
             #f.append(mat_inc[j,node])
     #bs = mat_st.shape[0]
     #return torch.Tensor(f).view(-1,1).float()
-    bs = mat_st.shape[0]
-    f = torch.ones(size=(bs,1),dtype=torch.bool)
-    f[current_depot,0] = 0
-    f[bs-1,0] = 0
-
+    #bs = mat_st.shape[0]
+    #f = torch.ones(size=(bs,1),dtype=torch.bool)
+    #f[current_depot,0] = 0
+    #f[bs-1,0] = 0
+    #for j in range(bs):
+        #f[j,0] = min(mat_st[j,:])
+    f = torch.as_tensor(mat_inc).float()
     return f
 
 
@@ -293,3 +296,60 @@ def build_attr(m):
 
     out = m[m1 >= 0]
     return out
+
+
+'''
+def training_rep(phases,rewards,eltype,opt,rep):
+    ott = opt[rep]
+    l = [_ for _ in range(phases)]
+    plt.figure()
+    for j in l:
+        plt.plot(j,rewards[j][rep],'b.',markersize=10)
+        plt.plot(j,-opt[rep],'r.',markersize=10)
+
+    plt.xlabel('Phase')
+    plt.ylabel(eltype)
+    plt.show()
+
+def confronto_generale(phases,rewards,opt):
+    n_rep = len(opt)
+    l = [_ for _ in range(phases)]
+    d = {}
+    for j in l:
+        l_graf = []
+        for jj in range(n_rep):
+            curr_opt = -opt[jj]
+            curr_res = rewards[j][jj]
+            norm_res = curr_opt/curr_res
+            l_graf.append(norm_res)
+        d[j] = l_graf
+
+    return d
+
+def plot_confronto_generale(d,eltype):
+    plt.figure()
+    for key in d:
+        l = d[key]
+        plt.plot(key,sum(l)/len(l),'b.',markersize=7)
+    plt.xlabel('Phase')
+    plt.ylabel(eltype)
+    plt.show()
+
+
+def grafico_training(phases,elemento,eltype,num_nodes,num_rollut,opt=None):
+    l = [k for k in range(1,phases+1)]
+    plt.figure()
+    for j in l:
+        plt.plot(j,elemento[j-1],'bx',markersize=10)
+        if opt is not None:
+            plt.plot(j, opt, 'r.', markersize=10)
+
+    plt.xlabel('Phase')
+    plt.ylabel(eltype)
+    title = 'Numero nodi: '+str(num_nodes)+'   Numero rollout: '+str(num_rollut)
+    plt.title(title)
+    plt.show()
+    return None
+
+
+'''

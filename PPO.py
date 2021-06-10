@@ -1,6 +1,6 @@
 from model import PPO_Model
 from modules2 import Actor,Critic
-from data_manager import PPG_data_manager
+from data_manager import PPG_data_manager,PPG_data_manager_NO_GCN
 from Environment_GH import environment, EnvSpecs, EnvType, tsp
 import copy
 import random
@@ -15,8 +15,11 @@ class ppo():
                  batchsize,
                  beta,
                  specsActor,
-                 specsCritic):
+                 specsCritic,
+                 device,GCNflag):
 
+        self.device = device
+        self.GCNflag = GCNflag
         self.nit = nit
         self.epochs = epochs
         self.exper = exper
@@ -24,12 +27,15 @@ class ppo():
         self.beta = beta
         self.specsActor = specsActor
         self.specsCritic = specsCritic
-        self.ACmodel = PPO_Model(specsActor,specsCritic)
+        self.ACmodel = PPO_Model(specsActor,specsCritic,GCNflag=self.GCNflag,device=self.device)
 
     def buildenvironment(self,envspecs):
         self.env = tsp(envspecs)
         self.rollout_lenght = self.env.nnodes
-        self.Buffer = PPG_data_manager(stacklenght=100000)
+        if self.GCNflag:
+            self.Buffer = PPG_data_manager(stacklenght=50000)
+        else:
+            self.Buffer = PPG_data_manager_NO_GCN(stacklenght=50000)
 
     def perform_rollouts(self,policy,s0,m0,threshold):
         rewards = []
@@ -50,14 +56,16 @@ class ppo():
         for j in range(self.rollout_lenght):
             f_insts = self.env.instances(st, mt)
             ns = mat_inc_st.shape[0]
-            edge_ind = build_index(ns)
-            features = build_features(mat_inc_st,f_insts[mt[0]][0][1],self.env.incidence_matrix,f_insts[mt[0]][0][0])
-            edge_indexes_list.append(edge_ind)
-            features_list.append(features)
-            #action_probs = policy([torch.as_tensor(mat_inc_st)],[mt])[0]
-            edge_attr = build_attr(mat_inc_st)
-            edge_attr_list.append(edge_attr)
-            action_probs = policy([features],[edge_ind],[edge_attr])[0]
+            if self.GCNflag:
+                edge_ind = build_index(ns)
+                features = build_features(mat_inc_st,f_insts[mt[0]][0][1],self.env.incidence_matrix,f_insts[mt[0]][0][0])
+                edge_indexes_list.append(edge_ind)
+                features_list.append(features)
+                action_probs = policy([features],[edge_ind],[edge_attr])[0]
+                edge_attr = build_attr(mat_inc_st)
+                edge_attr_list.append(edge_attr)
+            else:
+                action_probs = policy([torch.as_tensor(mat_inc_st)], [mt])[0]
             pol_probs.append(action_probs)
             dist_act_prob = torch.distributions.Categorical(action_probs)
             eps = random.random()
@@ -77,19 +85,28 @@ class ppo():
             cum_rew += [rt + cum_rew[-1]]
             if final:
                 break
-        return rew,pol_probs,states,mask_list,cum_rew,action_list,actions_ind_list,edge_indexes_list,features_list,edge_attr_list
+        if self.GCNflag:
+            return rew,pol_probs,states,mask_list,cum_rew,action_list,actions_ind_list,edge_indexes_list,features_list,edge_attr_list
+        else:
+            return rew, pol_probs, states, mask_list, cum_rew, action_list, actions_ind_list
 
     def policy_rollout(self,s0,m0,rep,cp,crr,threshold):
-        B = {'state': [], 'actions_probs': [], 'advantages':[],'values':[],'masks':[],'actions':[],'actions_ind':[],
-             'edge_indexes_list':[],'features_list':[], 'edge_attr_list':[]}
         self.env.set_instance(rep)
-        rew, pol_probs, states,masks, cum_rew, action_list, actions_ind_list, eil, fl, eal = self.perform_rollouts(cp, s0, m0,threshold)
+        if self.GCNflag:
+            B = {'state': [], 'actions_probs': [], 'advantages':[],'values':[],'masks':[],'actions':[],'actions_ind':[],
+                'edge_indexes_list':[],'features_list':[], 'edge_attr_list':[]}
+            rew, pol_probs, states, masks, cum_rew, action_list, actions_ind_list, eil, fl, eal = self.perform_rollouts(cp, s0, m0, threshold)
+        else:
+            B = {'state': [], 'actions_probs': [], 'advantages': [], 'values': [], 'masks': [], 'actions': [],'actions_ind': []}
+            rew, pol_probs, states, masks, cum_rew, action_list, actions_ind_list = self.perform_rollouts(cp, s0, m0, threshold)
+
         cr = cum_rew.copy()
         cr.reverse()
         V_target_list = cr
-        #V_pred_list = [crr([torch.as_tensor(elem)])[0] for elem in states]
-        V_pred_list = [crr([fl[k]],[eil[k]],[eal[k]])[0] for k in range(len(fl))]
-        #print(V_pred_list)
+        if self.GCNflag:
+            V_pred_list = [crr([fl[k]], [eil[k]], [eal[k]])[0] for k in range(len(fl))]
+        else:
+            V_pred_list = [crr([torch.as_tensor(elem)])[0] for elem in states]
         adv = []
         for ik in range(len(states) - 2):
             ai = V_pred_list[ik + 1] - V_pred_list[ik] + rew[ik]
@@ -120,9 +137,10 @@ class ppo():
             B['masks'].append(masks[k])
             B['actions'].append(action_list[k])
             B['actions_ind'].append(actions_ind_list[k])
-            B['edge_indexes_list'].append(eil[k])
-            B['features_list'].append(fl[k])
-            B['edge_attr_list'].append(eal[k])
+            if self.GCNflag:
+                B['edge_indexes_list'].append(eil[k])
+                B['features_list'].append(fl[k])
+                B['edge_attr_list'].append(eal[k])
         return B,cum_rew
 
     def ppo_algo(self,envspecs,threshold):
@@ -169,15 +187,20 @@ class ppo():
                 l_ind = [_ for _ in range(self.Buffer.get_lenght())]
                 for ii in range(num_iter_epoch):
                     list_index = l_ind[ii*self.batchsize:min((ii+1)*self.batchsize,len(l_ind)-1)]
-                    old_action_probs, values, action_inds, adv, states_list, masks_list, edg_inds, feat_list, edge_ats = self.Buffer.get_batch(self.batchsize)
-                    values_target = torch.as_tensor(values)
+                    if self.GCNflag:
+                        old_action_probs, values_t, action_inds, adv, states_list, masks_list, edg_inds, feat_list, edge_ats = self.Buffer.get_batch(self.batchsize)
+                    else:
+                        old_action_probs, values_t, action_inds, adv, states_list, masks_list = self.Buffer.get_batch(self.batchsize)
+                    values_target = torch.as_tensor(values_t)
                     adv = torch.as_tensor(adv)
                     values_pred = torch.empty(size=(self.batchsize,))
-                    #action_probs = self.ACmodel.actor(states_list, masks_list)
-                    action_probs = self.ACmodel.actor(feat_list,edg_inds,edge_ats)
+                    if self.GCNflag:
+                        action_probs = self.ACmodel.actor(feat_list, edg_inds, edge_ats)
+                        values = self.ACmodel.critic(feat_list, edg_inds, edge_ats)
+                    else:
+                        action_probs = self.ACmodel.actor(states_list, masks_list)
+                        values = self.ACmodel.critic(states_list)
                     loss_actor = self.ACmodel.update_actor(old_action_probs, action_probs, action_inds, adv)
-                    #values = self.ACmodel.critic(states_list)
-                    values = self.ACmodel.critic(feat_list,edg_inds,edge_ats)
                     for k in range(len(values)):
                         values_pred[k] = values[k]
 

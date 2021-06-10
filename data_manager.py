@@ -65,6 +65,45 @@ class data_manager():
 class PPG_data_manager():
 
     def __init__(self,stacklenght):
+        self.memory = {'state': [], 'actions_probs': [], 'advantages':[],'values':[],'masks':[],'actions':[],'actions_ind':[],
+                       'edge_indexes_list':[], 'features_list':[], 'edge_attr_list':[]}
+        self.stacklenght = stacklenght
+
+    def add(self,B):
+        if self.get_lenght()<=self.stacklenght:
+            for key in B.keys():
+                self.memory[key] += B[key]
+        else:
+            raise BufferError('Memoria Piena')
+
+    def restart(self):
+        self.memory = {'state': [], 'actions_probs': [], 'advantages': [], 'values': [], 'masks': [], 'actions': [],
+                       'actions_ind': [],'edge_indexes_list': [], 'features_list': [], 'edge_attr_list':[]}
+
+    def get_batch(self,batch_size,list_index=None):
+        if list_index == None:
+            list_index = random.sample(range(min(self.stacklenght,self.get_lenght())),batch_size)
+
+        oldprobs = [self.memory['actions_probs'][j] for j in list_index]
+        values = [self.memory['values'][j] for j in list_index]
+        actinds = [self.memory['actions_ind'][j] for j in list_index]
+        adv = [self.memory['advantages'][j] for j in list_index]
+        states = [self.memory['state'][j] for j in list_index]
+        masks = [self.memory['masks'][j] for j in list_index]
+        edge_inds = [self.memory['edge_indexes_list'][j] for j in list_index]
+        feat_list = [self.memory['features_list'][j] for j in list_index]
+        edge_attr_list = [self.memory['edge_attr_list'][j] for j in list_index]
+
+
+        return oldprobs,values,actinds,adv,states,masks,edge_inds,feat_list,edge_attr_list
+
+    def get_lenght(self):
+        return len(self.memory['state'])
+
+
+class PPG_data_manager_NO_GCN():
+
+    def __init__(self,stacklenght):
         self.memory = {'state': [], 'actions_probs': [], 'advantages':[],'values':[],'masks':[],'actions':[],'actions_ind':[]}
                        #'edge_indexes_list':[], 'features_list':[], 'edge_attr_list':[]}
         self.stacklenght = stacklenght
@@ -99,8 +138,6 @@ class PPG_data_manager():
 
     def get_lenght(self):
         return len(self.memory['state'])
-
-
 
 
 

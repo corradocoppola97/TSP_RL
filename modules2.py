@@ -460,12 +460,13 @@ class MLP(nn.Module):
 
 class Actor(nn.Module):
 
-    def __init__(self,conv_layers,fc_layers,maskdim):
+    def __init__(self,conv_layers,fc_layers,maskdim,device):
         super(Actor,self).__init__()
         self.conv_layers = conv_layers
         self.fc_layers = fc_layers
         self.maxout = fc_layers[0].in_features
         self.maskdim = maskdim
+        self.device = device
 
 
     def forward(self,x,mask_list):
@@ -475,13 +476,13 @@ class Actor(nn.Module):
             #print(bs)
             #print(x[j].shape)
             ns = x[j].shape[1]
-            xj = torch.as_tensor(x[j]).float()
+            xj = torch.as_tensor(x[j],device=self.device).float()
             xj = xj.view(-1,1,ns,ns)
             xj = self.conv_layers(xj)
             xj = xj.flatten()
             xs_j = xj.shape[0]
             if xs_j<self.maxout:
-                xj = torch.cat((xj,torch.zeros(self.maxout-xs_j)))
+                xj = torch.cat((xj,torch.zeros(self.maxout-xs_j,device=self.device)))
             xj = self.fc_layers(xj)
             xj = xj[mask_list[j]]
             xj = xj.softmax(0)
@@ -490,11 +491,13 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
 
-    def __init__(self,conv_layers,fc_layers):
+    def __init__(self,conv_layers,fc_layers,device):
         super(Critic,self).__init__()
         self.conv_layers = conv_layers
         self.fc_layers = fc_layers
         self.maxout = fc_layers[0].in_features
+        self.device = device
+
 
     def forward(self,x):
         bs = len(x)
@@ -502,13 +505,13 @@ class Critic(nn.Module):
         for j in range(bs):
             #print(x[j].shape)
             ns = x[j].shape[1]
-            xj = torch.as_tensor(x[j]).float()
+            xj = torch.as_tensor(x[j],device=self.device).float()
             xj = xj.view(-1,1,ns,ns)
             xj = self.conv_layers(xj)
             xj = xj.flatten()
             xj_s = xj.shape[0]
             if xj_s<self.maxout:
-                xj = torch.cat((xj,torch.zeros(self.maxout-xj_s)))
+                xj = torch.cat((xj,torch.zeros(self.maxout-xj_s,device=self.device)))
             xj = self.fc_layers(xj)
             out.append(xj)
         return out
@@ -516,14 +519,15 @@ class Critic(nn.Module):
 
 class Actor_GCN(nn.Module):
 
-    def __init__(self,emb_size,num_feat):
+    def __init__(self,emb_size,num_feat,device):
         super(Actor_GCN,self).__init__()
         self.num_feat = num_feat
         self.emb_size = emb_size
-        self.conv1 = GCNConv(self.num_feat,emb_size)
-        self.conv2 = GCNConv(emb_size,emb_size)
-        self.conv22 = GCNConv(emb_size, emb_size)
-        self.conv3 = GCNConv(emb_size,1)
+        self.conv1 = GCNConv(self.num_feat,emb_size,add_self_loops=False)
+        self.conv2 = GCNConv(emb_size,emb_size,add_self_loops=False)
+        self.conv22 = GCNConv(emb_size, emb_size,add_self_loops=False)
+        self.conv3 = GCNConv(emb_size,1,add_self_loops=False)
+        self.device = device
 
     def forward(self,batch_feat,batch_edges,batch_attr):
         bs = len(batch_feat)
@@ -531,20 +535,25 @@ class Actor_GCN(nn.Module):
         out = []
         for j in range(bs):
             x, edge_ind, adj = batch_feat[j].float(), batch_edges[j], batch_attr[j]
-            mask = copy.deepcopy(x).flatten()
+            #mask = copy.deepcopy(x).flatten().to(self.device)
+            x,edge_ind,adj = x.to(self.device),edge_ind.to(self.device),adj.to(self.device)
             x = self.conv1(x,edge_ind,adj)
             x = F.relu(x)
             x = self.conv2(x,edge_ind,adj)
             x = F.relu(x)
-            x = self.conv22(x, edge_ind, adj)
+            x = self.conv22(x,edge_ind,adj)
             x = F.relu(x)
             x = self.conv3(x,edge_ind,adj)
 
             x = x.flatten()
-            mask = torch.as_tensor(mask,dtype=torch.bool)
-            x = x[mask].softmax(0)
-            if mask.shape[0]<=2:
-                x = torch.Tensor([1.0]).softmax(0)
+            #mask = torch.as_tensor(mask,dtype=torch.bool,device=self.device)
+            #x = x[mask].softmax(0)
+            #if mask.shape[0]<=2:
+                #x = torch.Tensor([1.0]).softmax(0)
+            if x.shape[0]>2:
+                x = x[1:x.shape[0]-1].softmax(0)
+            else:
+                x = torch.Tensor([1.0],device=self.device).softmax(0)
 
             out.append(x)
 
@@ -553,14 +562,15 @@ class Actor_GCN(nn.Module):
 
 class Critic_GCN(nn.Module):
 
-    def __init__(self,emb_size,num_feat):
+    def __init__(self,emb_size,num_feat,device):
         super(Critic_GCN,self).__init__()
         self.num_feat = num_feat
         self.emb_size = emb_size
-        self.conv1 = GCNConv(self.num_feat,emb_size)
-        self.conv2 = GCNConv(emb_size,emb_size)
-        self.conv3 = GCNConv(emb_size,emb_size)
+        self.conv1 = GCNConv(self.num_feat,emb_size,add_self_loops=False)
+        self.conv2 = GCNConv(emb_size,emb_size,add_self_loops=False)
+        self.conv3 = GCNConv(emb_size,emb_size,add_self_loops=False)
         self.linear = nn.Linear(emb_size,1)
+        self.device = device
 
     def forward(self,batch_feat,batch_edges,batch_attr):
         bs = len(batch_feat)
@@ -568,6 +578,7 @@ class Critic_GCN(nn.Module):
         for j in range(bs):
             x, edge_ind, adj = batch_feat[j].float(), batch_edges[j], batch_attr[j]
             #print(x,edge_ind,adj)
+            x, edge_ind, adj = x.to(self.device), edge_ind.to(self.device), adj.to(self.device)
             x = self.conv1(x,edge_ind,adj)
             x = F.relu(x)
             x = self.conv2(x,edge_ind,adj)
@@ -582,9 +593,51 @@ class Critic_GCN(nn.Module):
         return out
 
 
+class Actor_GCN_base(nn.Module):
 
+    def __init__(self,dim_in,device):
+        super(Actor_GCN_base,self).__init__()
+        self.dim_in = dim_in
+        self.device = device
+        self.network = nn.Sequential(nn.Linear(dim_in,10*dim_in),nn.ReLU(),nn.Linear(10*dim_in,dim_in)).to(self.device)
 
+    def forward(self,batch_feat,m,b):
+        bs = len(batch_feat)
+        out = []
+        for j in range(bs):
+            x,cd = batch_feat[j]
+            x = x.float().to(self.device)
+            x = self.network(x)
+            mask = [1.0 for _ in range(self.dim_in)]
+            mask = torch.as_tensor(mask,dtype=torch.bool,device=self.device)
+            mask[-1] = 0
+            mask[cd] = 0
+            x = x[mask]
+            if x.shape[0]>=1:
+                x = x.softmax(0)
+            else:
+                x = torch.as_tensor([1.0],dev).softmax(0)
+            out.append(x)
+        return out
 
+class Critic_GCN_base(nn.Module):
+
+    def __init__(self,dim_in,device):
+        super(Critic_GCN_base,self).__init__()
+        self.dim_in = dim_in
+        self.device = device
+        self.network = nn.Sequential(nn.Linear(dim_in,10*dim_in),nn.ReLU(),nn.Linear(10*dim_in,1)).to(self.device)
+
+    def forward(self,batch_feat,m,b):
+        bs = len(batch_feat)
+        out = []
+        for j in range(bs):
+            x,cd = batch_feat[j]
+            x = x.float().to(self.device)
+            x = self.network(x)
+            out.append(x)
+
+        return out
 
 
 
