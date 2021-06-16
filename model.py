@@ -1,7 +1,7 @@
 import torch
 #torch.set_num_threads(4)
 from torch import nn
-from modules2 import CoreModel, GraphCNN, LstmModel, Basic_CNN, TSP_Model, CNN_st, CNN_st1, Encoder, MLP, TSP_Model_bis, Actor,Critic,Actor_GCN,Critic_GCN,Actor_GCN_base,Critic_GCN_base
+from modules2 import CoreModel, GraphCNN, LstmModel, Basic_CNN, TSP_Model, CNN_st, CNN_st1, Encoder, MLP, TSP_Model_bis, Actor,Critic,Actor_GCN,Critic_GCN,Actor_base,Critic_base
 
 class Model():
     def __init__(self, D_in, specs,edges,nnodes,mod_layers,LSTMflag = False, seed = None):
@@ -87,8 +87,10 @@ class PPG_Model():
     def __init__(self,specsActor,specsCritic,device,GCNflag):
         self.device = device
         if GCNflag:
-            self.actor = Actor_GCN(emb_size=specsActor['emb_size'], num_feat=1, device=self.device).to(self.device)
-            self.critic = Critic_GCN(emb_size=specsCritic['emb_size'], num_feat=1, device=self.device).to(self.device)
+            #self.actor = Actor_GCN(emb_size=specsActor['emb_size'], num_feat=1, device=self.device).to(self.device)
+            #self.critic = Critic_GCN(emb_size=specsCritic['emb_size'], num_feat=1, device=self.device).to(self.device)
+            self.actor = Actor_base()
+            self.critic = Critic_base(maxdim=10)
         else:
             self.actor = Actor(conv_layers=specsActor['conv_layers'],
                 fc_layers=specsActor['fc_layers'], maskdim=specsActor['maskdim'],device=self.device).to(self.device)
@@ -168,8 +170,9 @@ class PPO_Model():
     def __init__(self, specsActor, specsCritic, device, GCNflag):
         self.device = device
         if GCNflag:
-            self.actor = Actor_GCN(emb_size=specsActor['emb_size'], num_feat=1, device=self.device)
-            self.critic = Critic_GCN(emb_size=specsCritic['emb_size'], num_feat=1, device=self.device)
+            #self.actor = Actor_GCN(emb_size=specsActor['emb_size'], num_feat=1, device=self.device)
+            #self.critic = Critic_GCN(emb_size=specsCritic['emb_size'], num_feat=1, device=self.device)
+            self.actor = A
         else:
             self.actor = Actor(conv_layers=specsActor['conv_layers'],
                 fc_layers=specsActor['fc_layers'], maskdim=specsActor['maskdim'],device=self.device)

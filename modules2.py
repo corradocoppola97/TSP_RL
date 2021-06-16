@@ -529,14 +529,20 @@ class Actor_GCN(nn.Module):
         self.conv3 = GCNConv(emb_size,1,add_self_loops=False)
         self.device = device
 
-    def forward(self,batch_feat,batch_edges,batch_attr):
+    def forward(self,batch_feat,batch_edges,batch_attr,batch_masks):
         bs = len(batch_feat)
-        nsb = batch_feat[0].shape[0]
+        #nsb = batch_feat[0].shape[0]
         out = []
         for j in range(bs):
-            x, edge_ind, adj = batch_feat[j].float(), batch_edges[j], batch_attr[j]
+            (x,cd), edge_ind, adj, mask = batch_feat[j], batch_edges[j], batch_attr[j], batch_masks[j]
+            edge_ind, adj = edge_ind.to(self.device), adj.to(self.device)
+            mask = torch.as_tensor(mask,dtype=torch.int64,device=self.device)
             #mask = copy.deepcopy(x).flatten().to(self.device)
-            x,edge_ind,adj = x.to(self.device),edge_ind.to(self.device),adj.to(self.device)
+            tt = torch.zeros(size=(x.shape[0],1),device=self.device)
+            tt[mask,0] = 1.0
+            tt[cd,0] = 2.0
+            tt[-1,0] = 2.0
+            x = tt
             x = self.conv1(x,edge_ind,adj)
             x = F.relu(x)
             x = self.conv2(x,edge_ind,adj)
@@ -551,7 +557,7 @@ class Actor_GCN(nn.Module):
             #if mask.shape[0]<=2:
                 #x = torch.Tensor([1.0]).softmax(0)
             if x.shape[0]>2:
-                x = x[1:x.shape[0]-1].softmax(0)
+                x = x[mask].softmax(0)
             else:
                 x = torch.Tensor([1.0],device=self.device).softmax(0)
 
@@ -572,12 +578,17 @@ class Critic_GCN(nn.Module):
         self.linear = nn.Linear(emb_size,1)
         self.device = device
 
-    def forward(self,batch_feat,batch_edges,batch_attr):
+    def forward(self,batch_feat,batch_edges,batch_attr,batch_masks):
         bs = len(batch_feat)
         out = []
         for j in range(bs):
-            x, edge_ind, adj = batch_feat[j].float(), batch_edges[j], batch_attr[j]
+            (x,cd), edge_ind, adj,mask = batch_feat[j], batch_edges[j], batch_attr[j], batch_masks[j]
             #print(x,edge_ind,adj)
+            tt = torch.zeros(size=(x.shape[0],1),device=self.device)
+            tt[mask,0] = 1.0
+            tt[cd,0] = 2.0
+            tt[-1,0] = 2.0
+            x = tt
             x, edge_ind, adj = x.to(self.device), edge_ind.to(self.device), adj.to(self.device)
             x = self.conv1(x,edge_ind,adj)
             x = F.relu(x)
@@ -593,51 +604,115 @@ class Critic_GCN(nn.Module):
         return out
 
 
-class Actor_GCN_base(nn.Module):
+class GCNConv_(nn.Module):
 
-    def __init__(self,dim_in,device):
-        super(Actor_GCN_base,self).__init__()
-        self.dim_in = dim_in
-        self.device = device
-        self.network = nn.Sequential(nn.Linear(dim_in,10*dim_in),nn.ReLU(),nn.Linear(10*dim_in,dim_in)).to(self.device)
+    def __init__(self,in_channels,K):
+        super(GCNConv_,self).__init__()
+        self.in_channels = in_channels
+        self.Readout = nn.Sequential(nn.Linear(in_channels,in_channels*3),nn.ReLU(),nn.Linear(in_channels*3,in_channels*3),nn.ReLU(),
+        nn.Linear(in_channels*3,in_channels))
+        self.K = K
 
-    def forward(self,batch_feat,m,b):
-        bs = len(batch_feat)
+    def forward(self,x,mt,inc):
+        nodes_feats = torch.mean(inc,0) #mm = [cn1,cn2,..,cn_nodi,media1,medi2,..,mediannodi]
+        mm = torch.cat((x,nodes_feats)).flatten()
+        out_j = self.Readout(mm)
+        return out_j
+        #for k in range(self.K):
+
+
+class Actor_base(nn.Module):
+
+    def __init__(self):
+        super(Actor_base,self).__init__()
+        self.GCN = Pippo_GCN(4,5)
+
+
+    def forward(self,batch_masks,batch_inc,batch_currnodes):
+        bs = len(batch_masks)
         out = []
         for j in range(bs):
-            x,cd = batch_feat[j]
-            x = x.float().to(self.device)
-            x = self.network(x)
-            mask = [1.0 for _ in range(self.dim_in)]
-            mask = torch.as_tensor(mask,dtype=torch.bool,device=self.device)
-            mask[-1] = 0
-            mask[cd] = 0
-            x = x[mask]
-            if x.shape[0]>=1:
-                x = x.softmax(0)
-            else:
-                x = torch.as_tensor([1.0],dev).softmax(0)
-            out.append(x)
+            mt,inc,curr_node = batch_masks[j], batch_inc[j],batch_currnodes[j]
+            out_j = self.GCN(mt,inc,curr_node)
+            out_j = out_j[mt]
+            out_j = out_j.softmax(0)
+            out.append(out_j)
         return out
 
-class Critic_GCN_base(nn.Module):
+class Critic_base(nn.Module):
 
-    def __init__(self,dim_in,device):
-        super(Critic_GCN_base,self).__init__()
-        self.dim_in = dim_in
-        self.device = device
-        self.network = nn.Sequential(nn.Linear(dim_in,10*dim_in),nn.ReLU(),nn.Linear(10*dim_in,1)).to(self.device)
+    def __init__(self,maxdim):
+        super(Critic_base,self).__init__()
+        self.GCN = Pippo_GCN(4,5)
+        self.maxdim = maxdim
+        self.Final_layer = nn.Sequential(nn.Linear(self.maxdim,2*self.maxdim),nn.ReLU(),nn.Linear(self.maxdim*2,1))
 
-    def forward(self,batch_feat,m,b):
-        bs = len(batch_feat)
+    def forward(self,batch_masks,batch_inc,batch_currnodes):
+        bs = len(batch_masks)
         out = []
         for j in range(bs):
-            x,cd = batch_feat[j]
-            x = x.float().to(self.device)
-            x = self.network(x)
-            out.append(x)
-
+            mt,inc,curr_node = batch_masks[j], batch_inc[j],batch_currnodes[j]
+            out_j = self.GCN(mt,inc,curr_node)
+            osh = out_j.shape[0]
+            if osh<self.maxdim:
+                out_j = torch.cat((out_j,torch.zeros(size=(self.maxdim-osh,))))
+            out_j = self.Final_layer(out_j)
+            out.append(out_j)
         return out
+
+
+class Pippo_GCN(nn.Module):
+
+    def __init__(self,K,pool_size):
+        super(Pippo_GCN,self).__init__()
+        #self.in_channels = in_channels
+        #self.Readout = nn.Sequential(nn.Linear(in_channels,in_channels*3),nn.ReLU(),nn.Linear(in_channels*3,in_channels*3),nn.ReLU(),
+        #nn.Linear(in_channels*3,in_channels))
+        self.pool_size = pool_size
+        self.Readout = nn.Sequential(nn.Linear(1+self.pool_size,self.pool_size*3),nn.ReLU(),
+                                        nn.Linear(self.pool_size*3,self.pool_size*2),nn.ReLU(),
+                                        nn.Linear(self.pool_size*2,1))
+        self.K = K
+        #self.device = device
+
+    def forward(self,mt,inc,curr_node):
+        n_nodes = inc.shape[0]
+        inc = torch.as_tensor(inc).float()
+        mask = torch.zeros(size=(n_nodes,))
+        mask[mt] = 1
+        h = copy.deepcopy(mask)
+        h = h*inc[curr_node]
+        for k in range(self.K):
+            v = torch.zeros(size=(n_nodes,))
+            for m in mt:
+                mt_copia = copy.deepcopy(mt)
+                mt_no_m = list(set(mt_copia) - set([m]))
+                h_m = inc[m,mt_no_m]
+                #v[m] = torch.dot(h[mt_no_m],h_m)/len(mt_no_m) #pesi
+                vv = h[mt_no_m]*h_m
+                vv = torch.sort(vv)[0]
+                if vv.shape[0]<n_nodes-2:
+                    padding = torch.zeros(size=(n_nodes-2-vv.shape[0],))
+                    vv = torch.cat((vv,padding))
+
+                vv = vv[:self.pool_size]
+                h_m_tensor = torch.tensor([h[m]])
+                input_rete = torch.cat((h_m_tensor,vv))
+                v[m] = self.Readout(input_rete.float())
+
+            h = v
+            h = h/torch.norm(h)
+        return h
+
+
+
+
+
+
+
+
+
+
 
 
 

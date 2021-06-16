@@ -12,11 +12,11 @@ from TSP_ortools import risolvi_problema, print_solution
 from support import baseline_ortools
 from PPO import ppo
 #torch.set_num_threads(4)
-nnodes = 10
+nnodes = 7
 nedges = nnodes*(nnodes-1)
-repetitions = 5
-#device = torch.device('cpu')
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+repetitions = 3
+device = torch.device('cpu')
+#device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 graphspecs = {
     RandomGraphSpecs.Nnodes : nnodes,
     RandomGraphSpecs.Nedges : nedges,
@@ -59,7 +59,7 @@ specsActor['fc_layers'] = nn.Sequential(nn.Linear(maxfcL,30),nn.ReLU(),
 specsActor['eps'] = 0.2
 specsActor['beta'] = 1
 specsActor['beta_c'] = 0.01
-specsActor['lr'] = 1e-6
+specsActor['lr'] = 1e-5
 specsActor['maskdim'] = nnodes+1
 
 specsCritic['conv_layers'] = nn.Sequential(nn.Conv2d(1,4,3,stride=1,padding=1),nn.ReLU(),
@@ -69,21 +69,23 @@ specsCritic['fc_layers'] = nn.Sequential(nn.Linear(maxfcL,30),nn.ReLU(),
 specsCritic['lr'] = 5e-4
 specsActor['emb_size'] = 16
 specsCritic['emb_size'] = 16
+specsCritic['in_channels'] = (nnodes+1)*2
+specsActor['in_channels'] = (nnodes+1)*2
 
 n_phases = 30
-algo_ppg = ppg(phases=n_phases,policy_iterations=12,
+algo_ppg = ppg(phases=n_phases,policy_iterations=9,
     specsActor=specsActor,
     specsCritic=specsCritic,
     E_policy=3, #Numero di epoche di training in una policy iteration
     E_value=3,
-    E_aux=1, #Epoche di training ausiliario
+    E_aux=3, #Epoche di training ausiliario
     stacklenght=50000,
     seed=1,
     batchsize=nnodes+1,
     exper=10,
     gamma=1,
     lam=0,
-    device=device,GCN_flag=False) #numero di rollout
+    device=device,GCN_flag=True) #numero di rollout
 
 nit = 150
 exper = 20
@@ -129,7 +131,7 @@ def training_ppg(stats,opt,phases,it,num_rep,exper):
 
     return d,f
 
-#avg, best = training_ppg(stats_reward,opt,n_phases,1,repetitions,algo_ppg.experience_dataset_lenght)
+avg, best = training_ppg(stats_reward,opt,n_phases,1,repetitions,algo_ppg.experience_dataset_lenght)
 
 def training_ppo(stats,opt,nit,num_rep,exper,flag):
     d = {}
@@ -154,7 +156,7 @@ def training_ppo(stats,opt,nit,num_rep,exper,flag):
             d[i] = best_rewards_norm
     return d
 
-d = training_ppo(stats_reward_ppo,opt,nit,repetitions,exper,'avg')
+#d = training_ppo(stats_reward_ppo,opt,nit,repetitions,exper,'avg')
 
 def grafico_normalized_reward(dict,flag,LC=None):
     h = len(dict)

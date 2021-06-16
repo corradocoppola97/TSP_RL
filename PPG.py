@@ -72,18 +72,20 @@ class ppg():
         action_list = []
         actions_ind_list = []
         if self.GCNflag:
-            edge_indexes_list, features_list, edge_attr_list = [],[],[]
+            edge_indexes_list, features_list, edge_attr_list = [],[],[] #edge_index = mat_inc!!! features_list==nodi correnti!!!
         for j in range(self.rollout_lenght):
             f_insts = self.env.instances(st, mt)
             ns = mat_inc_st.shape[0]
             if self.GCNflag:
                 edge_ind = build_index(ns)
-                features = build_features(mat_inc_st,f_insts[mt[0]][0][1],self.env.incidence_matrix,self.env.current_depot)
-                edge_indexes_list.append(edge_ind)
-                features_list.append(features)
+                cn = f_insts[mt[0]][0][0]
+                features = build_features(cn,mt,self.env.incidence_matrix)
+                edge_indexes_list.append(self.env.incidence_matrix)
+                features_list.append(cn)
                 edge_attr = build_attr(mat_inc_st)
                 edge_attr_list.append(edge_attr)
-                action_probs = policy([features],[edge_ind],[edge_attr])[0]
+                #action_probs = policy([features],[edge_ind],[edge_attr],[mt])[0]
+                action_probs = policy([mt],[self.env.incidence_matrix],[cn])[0]
             else:
                 action_probs = policy([torch.as_tensor(mat_inc_st)],[mt])[0]
             pol_probs.append(action_probs)
@@ -126,7 +128,7 @@ class ppg():
         cr.reverse()
         V_target_list = cr
         if self.GCNflag:
-            V_pred_list = [crr([fl[k]], [eil[k]], [eal[k]])[0] for k in range(len(fl))]
+            V_pred_list = [crr([masks[k]],[eil[k]],[fl[k]])[0] for k in range(len(fl))]
         else:
             V_pred_list = [crr([torch.as_tensor(elem,device=self.device)])[0] for elem in states]
         adv = []
@@ -212,13 +214,13 @@ class ppg():
 
                     adv = torch.as_tensor(adv,device=self.device)
                     if self.GCNflag:
-                        action_probs = self.ACmodel.actor(feat_list, edg_inds, edge_ats)
-                        values = self.ACmodel.critic(feat_list, edg_inds, edge_ats)
+                        action_probs = self.ACmodel.actor(masks_list,edg_inds,feat_list)
+                        values = self.ACmodel.critic(masks_list,edg_inds,feat_list)
                     else:
                         action_probs = self.ACmodel.actor(states_list,masks_list)
                         values = self.ACmodel.critic(states_list)
 
-                    values_target = torch.as_tensor(values_t, device=self.device)
+                    values_target = torch.as_tensor(values_t,device=self.device)
                     loss_actor = self.ACmodel.update_actor(old_action_probs,action_probs,action_inds,adv)
                     Ls.append(loss_actor.item())
                     #print('Loss actor: ',loss_actor)
@@ -250,8 +252,8 @@ class ppg():
                 #print(l_ind_aux)
                 if self.GCNflag:
                     oldprobs, values, actinds, adv, states, mask_list_aux, eil_aux, fl_aux, eal_aux = self.Buffer.get_batch(self.batchsize,l_ind_aux)
-                    v_pred = self.ACmodel.critic(fl_aux,eil_aux,eal_aux)
-                    probs_aux = self.ACmodel.actor(fl_aux,eil_aux,eal_aux)
+                    v_pred = self.ACmodel.critic(mask_list_aux,eil_aux,fl_aux)
+                    probs_aux = self.ACmodel.actor(mask_list_aux,eil_aux,fl_aux)
                 else:
                     oldprobs, values, actinds, adv, states, mask_list_aux = self.Buffer.get_batch(self.batchsize, l_ind_aux)
                     v_pred = self.ACmodel.critic(states)
@@ -291,7 +293,7 @@ class ppg():
         threshold = 0.25
         for phase in range(self.phases):
             print('Inizio fase n. {} di {}'.format(phase+1,self.phases))
-            actor,critic,current_buffer,rew_stats,Loss_actor_stats,Loss_critic_stats,Loss_joint_stats,Loss_aux_stats, rgs = self.PPG_phase(threshold)
+            actor,critic,current_buffer,rew_stats,Loss_actor_stats,Loss_critic_stats,Loss_joint_stats,Loss_aux_stats,rgs = self.PPG_phase(threshold)
             stats_actor_loss.append(Loss_actor_stats)
             stats_critic_loss.append(Loss_critic_stats)
             stats_loss_joint.append(Loss_joint_stats)
@@ -315,9 +317,9 @@ class ppg():
             mr = sum(best)/len(best)
             print('Avg rew: {}, Max rew: {}, Loss actor: {:.2f}, Loss critic: {:.2f}, Loss Joint: {:.2f}'.format(avgr,mr,lact,lcri,jjj))
             self.Buffer.restart()
-            if phase> self.phases/3:
+            if phase > self.phases/4:
                 threshold = 0.1
-            if phase> 2*self.phases/3:
+            if phase > self.phases/2:
                 threshold = 0
 
             print('\n')

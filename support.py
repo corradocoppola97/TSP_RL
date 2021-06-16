@@ -259,30 +259,11 @@ def build_index(ns):
 
 
 
-def build_features(mat_st,bool_st,mat_inc,current_depot):
-
-    #m = torch.as_tensor(m).float()
-    #n = m.shape[0]
-    #f = []
-    #for j in range(n):
-        #riga = m[j].float()
-        #riga_1 = copy.deepcopy(riga)
-        #riga_1[j] = 1e6
-        #L = [min(riga_1).item(),max(riga).item(),torch.mean(m).item(),torch.std(m).item()]
-        #f.append(L)
-    #for j in range(mat_inc.shape[0]):
-        #if bool_st[j,node] == True or j==node or j==mat_inc.shape[0]-1:
-            #f.append(mat_inc[j,node])
-    #bs = mat_st.shape[0]
-    #return torch.Tensor(f).view(-1,1).float()
-    #bs = mat_st.shape[0]
-    #f = torch.ones(size=(bs,1),dtype=torch.bool)
-    #f[current_depot,0] = 0
-    #f[bs-1,0] = 0
-    #for j in range(bs):
-        #f[j,0] = min(mat_st[j,:])
-    f = torch.as_tensor(mat_inc).float()
-    return f
+def build_features(current_node,mask,mat_inc):
+    f = torch.empty(size=(mat_inc.shape[0],))
+    for j in range(mat_inc.shape[0]):
+        f[j] = mat_inc[current_node,j]
+    return f.float()
 
 
 def build_attr(m):
