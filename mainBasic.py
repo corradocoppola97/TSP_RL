@@ -40,7 +40,7 @@ seed = 20000
 random.seed(a=seed)
 
 #Generate random graph
-nnodes = 15
+nnodes = 10
 nedges = nnodes*(nnodes-1)
 repetitions = 10
 

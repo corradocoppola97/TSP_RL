@@ -485,7 +485,7 @@ class Actor(nn.Module):
                 xj = torch.cat((xj,torch.zeros(self.maxout-xs_j,device=self.device)))
             xj = self.fc_layers(xj)
             xj = xj[mask_list[j]]
-            xj = xj.softmax(0)
+            xj = xj.softmax(0).clamp(0,1)
             out.append(xj)
         return out
 
@@ -669,10 +669,16 @@ class Pippo_GCN(nn.Module):
         #self.Readout = nn.Sequential(nn.Linear(in_channels,in_channels*3),nn.ReLU(),nn.Linear(in_channels*3,in_channels*3),nn.ReLU(),
         #nn.Linear(in_channels*3,in_channels))
         self.pool_size = pool_size
-        self.Readout = nn.Sequential(nn.Linear(1+self.pool_size,self.pool_size*3),nn.ReLU(),
-                                        nn.Linear(self.pool_size*3,self.pool_size*2),nn.ReLU(),
-                                        nn.Linear(self.pool_size*2,1))
+        #self.Readout = nn.Sequential(nn.Linear(1+self.pool_size,self.pool_size*3),nn.ReLU(),
+                                        #nn.Linear(self.pool_size*3,self.pool_size*2),nn.ReLU(),
+                                        #nn.Linear(self.pool_size*2,1))
         self.K = K
+        self.R = [nn.Sequential(nn.Linear(1+self.pool_size,self.pool_size*3),nn.ReLU(),
+                                        nn.Linear(self.pool_size*3,self.pool_size*2),nn.ReLU(),
+                                        nn.Linear(self.pool_size*2,1)) for k in range(self.K)]
+        self.R = nn.ModuleList(self.R)
+
+
         #self.device = device
 
     def forward(self,mt,inc,curr_node):
@@ -681,16 +687,17 @@ class Pippo_GCN(nn.Module):
         mask = torch.zeros(size=(n_nodes,))
         mask[mt] = 1
         h = copy.deepcopy(mask)
-        h = h*inc[curr_node]
+        #h = h*inc[curr_node]
+        h[curr_node] = 2
         for k in range(self.K):
             v = torch.zeros(size=(n_nodes,))
             for m in mt:
                 mt_copia = copy.deepcopy(mt)
-                mt_no_m = list(set(mt_copia) - set([m]))
+                mt_no_m = list(set(mt_copia))#Fare la prova con l'auto-loop
                 h_m = inc[m,mt_no_m]
                 #v[m] = torch.dot(h[mt_no_m],h_m)/len(mt_no_m) #pesi
                 vv = h[mt_no_m]*h_m
-                vv = torch.sort(vv)[0]
+                vv = torch.sort(vv,descending=True)[0]
                 if vv.shape[0]<n_nodes-2:
                     padding = torch.zeros(size=(n_nodes-2-vv.shape[0],))
                     vv = torch.cat((vv,padding))
@@ -698,7 +705,7 @@ class Pippo_GCN(nn.Module):
                 vv = vv[:self.pool_size]
                 h_m_tensor = torch.tensor([h[m]])
                 input_rete = torch.cat((h_m_tensor,vv))
-                v[m] = self.Readout(input_rete.float())
+                v[m] = self.R[k](input_rete.float())
 
             h = v
             h = h/torch.norm(h)

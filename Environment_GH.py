@@ -421,11 +421,20 @@ class tsp(environment):
             at = act
             at_OH = [0 for _ in range(self.nnodes+1)]
             at_OH[at] = 1
-            mat_inc_st = self.incidence_matrix[mat_st]
+            mat_inc_st = self.incidence_matrix[mat_st] #modifica in modo tale che prima riga sia depot!!!!!
             mat_inc_st1 = self.incidence_matrix[mat_st1]
             n = int(mat_inc_st.shape[0]**0.5)
             st1 = (next_node,mat_st1)
-            insts[act] = [st,at,st1,np.reshape(mat_inc_st,(n,n)),np.reshape(mat_inc_st1,(n-1,n-1)),at_OH]
+            mat_inc_st1_reshaped = np.reshape(mat_inc_st1,(n-1,n-1))
+            mat_inc_st_reshaped = np.reshape(mat_inc_st,(n,n))
+            m1,m2 = copy.deepcopy(mat_inc_st_reshaped),copy.deepcopy(mat_inc_st1_reshaped)
+            #print('cd',self.current_depot)
+            #print(mat_inc_st1_reshaped)
+            mat_inc_st1_reshaped[0] = m2[self.current_depot]
+            mat_inc_st1_reshaped[self.current_depot] = m2[0]
+            #print(mat_inc_st1_reshaped)
+            #print('\n')
+            insts[act] = [st,at,st1,mat_inc_st_reshaped,mat_inc_st1_reshaped,at_OH]
             sts[act] = st1
 
         self._instances = insts

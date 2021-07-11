@@ -2,6 +2,7 @@ from enum import Enum
 import random
 import math
 import numpy as np
+import matplotlib.pyplot as plt
 
 class TableType(Enum):
     random_graph = 1
@@ -257,13 +258,28 @@ class gametable():
         edges = []
         costs = [{} for _ in range(repetitions)]
         dist_matrixes = []
+        #plt.figure()
+        #plt.xlim(0, 100)
+        #plt.ylim(0, 100)
 
         for rep in range(repetitions):
             v = []
             for _ in range(nnodes):
-                p = distribution(lb,ub,size)
+                delta = random.randint(0,1)
+                #p = np.random.uniform(_,_,size=(2,))+np.random.normal(0,10,size=(2,))
+                #p = abs(p)
+                #p = np.random.normal(50,5,size=(2,))
+                #p = delta*np.random.uniform(0,20,size=(2,))+(1-delta)*np.random.uniform(80,100,size=(2,)) + np.random.normal(0,10)
+                #p = abs(p)
+                p = np.random.uniform(0,100,size=(2,))
                 v.append(p)
+                #if rep==0:
+                    #if _==0:
+                        #plt.plot(p[0],p[1],'r.',markersize=5)
+                    #else:
+                        #plt.plot(p[0], p[1],'b.',markersize=5)
 
+            #plt.show()
             dist_matrix = []
             for _ in range(nnodes):
                 rr = []

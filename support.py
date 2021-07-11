@@ -6,6 +6,7 @@ import pandas as pd
 from ortools.constraint_solver import routing_enums_pb2, pywrapcp
 import torch
 import copy
+import matplotlib.pyplot as plt
 
 
 # f = pd.read_fwf(r'C:\Users\Marta\Desktop\TESI\abz5.txt', header=None, sep='  ')
@@ -188,8 +189,10 @@ class baseline_ortools():
         transit_callback_index = routing.RegisterTransitCallback(distance_callback)
         routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
         search_parameters = pywrapcp.DefaultRoutingSearchParameters()
-        search_parameters.first_solution_strategy = (routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
+        search_parameters.first_solution_strategy = (routing_enums_pb2.FirstSolutionStrategy.LOCAL_CHEAPEST_ARC)
+        search_parameters.time_limit.nanos = 100000000
         solution = routing.SolveWithParameters(search_parameters)
+
         return solution, manager, routing
 
 
@@ -277,6 +280,80 @@ def build_attr(m):
 
     out = m[m1 >= 0]
     return out
+
+
+def training_ppo(stats,opt,nit,num_rep,exper,flag):
+    d = {}
+    if flag == 'avg':
+        for i in range(nit):
+            stats_i = stats[i]
+            avg_rewards_norm = []
+            for k in range(num_rep):
+                avg_r = sum(stats_i[k])/len(stats_i[k])
+                norm_r = -opt[k]/avg_r
+                avg_rewards_norm.append(norm_r)
+            d[i] = avg_rewards_norm
+
+    if flag == 'best':
+        for i in range(nit):
+            stats_i = stats[i]
+            best_rewards_norm = []
+            for k in range(num_rep):
+                best_r = max(stats_i[k])
+                norm_r = -opt[k]/best_r
+                best_rewards_norm.append(norm_r)
+            d[i] = best_rewards_norm
+    return d
+
+def training_ppg(stats,opt,phases,it,num_rep,exper):
+    stats_avg, stats_best = [], []
+    for ph in range(phases):
+        stats_phase_ph = stats[ph]
+        for iteration in range(it):
+            stats_iteration = stats_phase_ph[iteration]
+            best_rew,avg_rew = [],[]
+            for rep in range(num_rep):
+                best = max(stats_iteration[rep])
+                avg = sum(stats_iteration[rep])/len(stats_iteration[rep])
+                best_rew.append(-opt[rep]/best)
+                avg_rew.append(-opt[rep]/avg)
+        stats_avg.append(avg_rew)
+        stats_best.append(best_rew)
+    d,f = {}, {}
+    for ph in range(phases):
+        d[ph] = stats_avg[ph]
+        f[ph] = stats_best[ph]
+
+    return d,f
+
+def grafico_normalized_reward(dict,flag,LC=None):
+    h = len(dict)
+    plt.figure()
+    if flag == 'avg':
+        for i in range(h):
+            plt.plot(i+1,sum(dict[i])/len(dict[i]),'b.',markersize=7)
+    elif flag == 'best':
+        for i in range(h):
+            plt.plot(i+1,max(dict[i]),'b.',markersize=7)
+
+    elif flag == 'all':
+        for i in range(h):
+            for ii in range(len(dict[i])):
+                plt.plot(i+1,dict[i][ii],LC[ii],markersize=7)
+
+    plt.xlabel('Phases')
+    plt.ylabel('Reward Statistics Type '+flag)
+    plt.show()
+
+def grafico_test(opt,stats):
+    n = len(stats)
+    s = []
+    for i in range(n):
+        s_i = abs(opt[i]/max(stats[i]))
+        s.append(s_i)
+    plt.plot(s,'b.',markersize=5)
+    plt.show()
+    return s
 
 
 '''

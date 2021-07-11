@@ -9,12 +9,13 @@ import torch.nn as nn
 from PPG import *
 from Game_GH import TableType, RandomGraphSpecs, gametable
 from TSP_ortools import risolvi_problema, print_solution
-from support import baseline_ortools
+from support import baseline_ortools,training_ppo,training_ppg,grafico_normalized_reward,grafico_test
 from PPO import ppo
+path = '\\Users\corra\OneDrive\Desktop\Tesi\ModelliSalvati'
 #torch.set_num_threads(4)
-nnodes = 7
+nnodes = 20
 nedges = nnodes*(nnodes-1)
-repetitions = 3
+repetitions = 30
 device = torch.device('cpu')
 #device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 graphspecs = {
@@ -39,7 +40,7 @@ environment_specs = {
     EnvSpecs.actiondimension : nedges,
     EnvSpecs.rewardimension : D_out,
     EnvSpecs.edges : edges.copy(),
-    EnvSpecs.costs : costs.copy(),
+    EnvSpecs.costs : costs1.copy(),
     EnvSpecs.prize : 1,
     EnvSpecs.penalty : 0,
     EnvSpecs.finalpoint : nnodes-1,
@@ -48,10 +49,10 @@ environment_specs = {
 
 specsActor = {}
 specsCritic = {}
-
-specsActor['conv_layers'] = nn.Sequential(nn.Conv2d(1,4,3,stride=1,padding=1),nn.ReLU(),
+model_max_dim = nnodes+1
+specsActor['conv_layers'] = nn.Sequential(nn.Conv2d(1,4,3,stride=1,padding=1),nn.ReLU(), #nn.Conv2d(4,8,3,stride=1,padding=1),nn.ReLU(),
                                             nn.Conv2d(4,8,3,stride=1,padding=1))
-maxfcL = int(specsActor['conv_layers'][-1].out_channels*(nnodes+1)**2)
+maxfcL = int(specsActor['conv_layers'][-1].out_channels*(model_max_dim)**2)
 specsActor['fc_layers'] = nn.Sequential(nn.Linear(maxfcL,30),nn.ReLU(),
                                         #nn.Linear(300,50),nn.ReLU(),
                                         nn.Linear(30,nnodes+1))
@@ -59,10 +60,10 @@ specsActor['fc_layers'] = nn.Sequential(nn.Linear(maxfcL,30),nn.ReLU(),
 specsActor['eps'] = 0.2
 specsActor['beta'] = 1
 specsActor['beta_c'] = 0.01
-specsActor['lr'] = 1e-5
+specsActor['lr'] = 1e-7
 specsActor['maskdim'] = nnodes+1
 
-specsCritic['conv_layers'] = nn.Sequential(nn.Conv2d(1,4,3,stride=1,padding=1),nn.ReLU(),
+specsCritic['conv_layers'] = nn.Sequential(nn.Conv2d(1,4,3,stride=1,padding=1),nn.ReLU(), #nn.Conv2d(4,8,3,stride=1,padding=1),nn.ReLU(),
                                             nn.Conv2d(4,8,3,stride=1,padding=1))
 specsCritic['fc_layers'] = nn.Sequential(nn.Linear(maxfcL,30),nn.ReLU(),
                                         nn.Linear(30,1))
@@ -72,23 +73,23 @@ specsCritic['emb_size'] = 16
 specsCritic['in_channels'] = (nnodes+1)*2
 specsActor['in_channels'] = (nnodes+1)*2
 
-n_phases = 30
+n_phases = 300
 algo_ppg = ppg(phases=n_phases,policy_iterations=9,
     specsActor=specsActor,
     specsCritic=specsCritic,
-    E_policy=3, #Numero di epoche di training in una policy iteration
-    E_value=3,
+    E_policy=1, #Numero di epoche di training in una policy iteration
+    E_value=1,
     E_aux=3, #Epoche di training ausiliario
-    stacklenght=50000,
+    stacklenght=5000000000,
     seed=1,
     batchsize=nnodes+1,
     exper=10,
     gamma=1,
     lam=0,
-    device=device,GCN_flag=True) #numero di rollout
+    device=device,GCN_flag=False) #numero di rollout
 
-nit = 150
-exper = 20
+nit = 7500
+exper = 10
 epochs = 3
 algo_ppo = ppo(nit=nit,
             epochs=epochs,
@@ -99,84 +100,61 @@ algo_ppo = ppo(nit=nit,
             specsCritic=specsCritic,
             device=device,GCNflag=False)
 
-actor,critic,stats_reward,Loss_actor_stats,Loss_critic_stats,Loss_joint_stats,Loss_aux_stats,rgs = algo_ppg.PPG_algo(environment_specs)
+f1 = '0907_30g20n_PPO.txt'
+file_name = ('\policy_'+f1,'\pvalue_'+f1)
+#actor,critic,stats_reward,Loss_actor_stats,Loss_critic_stats,Loss_joint_stats,Loss_aux_stats,rgs = algo_ppg.PPG_algo(environment_specs,file_name=file_name,threshold=0.25)
 import matplotlib.pyplot as plt
-#stats_loss_actor_ppo,stats_loss_critic_ppo,stats_reward_ppo = algo_ppo.ppo_algo(envspecs=environment_specs,threshold=0.25)
-
+#algo_ppo.load_models(path,file_name)
+stats_loss_actor_ppo,stats_loss_critic_ppo,stats_reward_ppo,actor_ppo,critic_ppo = algo_ppo.ppo_algo(envspecs=environment_specs,threshold=0.25, file_name=file_name)
 
 aaa = baseline_ortools(dis_m=costs,n=nnodes)
 opt,time,out = aaa.solve_ortools()
 
+#avg, best = training_ppg(stats_reward,opt,n_phases,1,repetitions,algo_ppg.experience_dataset_lenght)
 
-
-
-def training_ppg(stats,opt,phases,it,num_rep,exper):
-    stats_avg, stats_best = [], []
-    for ph in range(phases):
-        stats_phase_ph = stats[ph]
-        for iteration in range(it):
-            stats_iteration = stats_phase_ph[iteration]
-            best_rew,avg_rew = [],[]
-            for rep in range(num_rep):
-                best = max(stats_iteration[rep])
-                avg = sum(stats_iteration[rep])/len(stats_iteration[rep])
-                best_rew.append(-opt[rep]/best)
-                avg_rew.append(-opt[rep]/avg)
-        stats_avg.append(avg_rew)
-        stats_best.append(best_rew)
-    d,f = {}, {}
-    for ph in range(phases):
-        d[ph] = stats_avg[ph]
-        f[ph] = stats_best[ph]
-
-    return d,f
-
-avg, best = training_ppg(stats_reward,opt,n_phases,1,repetitions,algo_ppg.experience_dataset_lenght)
-
-def training_ppo(stats,opt,nit,num_rep,exper,flag):
-    d = {}
-    if flag == 'avg':
-        for i in range(nit):
-            stats_i = stats[i]
-            avg_rewards_norm = []
-            for k in range(num_rep):
-                avg_r = sum(stats_i[k])/len(stats_i[k])
-                norm_r = -opt[k]/avg_r
-                avg_rewards_norm.append(norm_r)
-            d[i] = avg_rewards_norm
-
-    if flag == 'best':
-        for i in range(nit):
-            stats_i = stats[i]
-            best_rewards_norm = []
-            for k in range(num_rep):
-                best_r = max(stats_i[k])
-                norm_r = -opt[k]/best_r
-                best_rewards_norm.append(norm_r)
-            d[i] = best_rewards_norm
-    return d
-
-#d = training_ppo(stats_reward_ppo,opt,nit,repetitions,exper,'avg')
-
-def grafico_normalized_reward(dict,flag,LC=None):
-    h = len(dict)
-    plt.figure()
-    if flag == 'avg':
-        for i in range(h):
-            plt.plot(i+1,sum(dict[i])/len(dict[i]),'b.',markersize=7)
-    elif flag == 'best':
-        for i in range(h):
-            plt.plot(i+1,max(dict[i]),'b.',markersize=7)
-
-    elif flag == 'all':
-        for i in range(h):
-            for ii in range(len(dict[i])):
-                plt.plot(i+1,dict[i][ii],LC[ii],markersize=7)
-
-    plt.xlabel('Phases')
-    plt.ylabel('Reward Statistics Type '+flag)
-    plt.show()
+d = training_ppo(stats_reward_ppo,opt,nit,repetitions,exper,'avg')
+dd = training_ppo(stats_reward_ppo,opt,nit,repetitions,exper,'best')
 
 
 #grafico_normalized_reward(avg,'avg')
+
+graphspecs_test = {
+    RandomGraphSpecs.Nnodes : nnodes,
+    RandomGraphSpecs.Nedges : nedges,
+    RandomGraphSpecs.Probability: None,
+    RandomGraphSpecs.Seed: 1,
+    RandomGraphSpecs.Repetitions: 100,
+    RandomGraphSpecs.Distribution: None,
+    RandomGraphSpecs.DistParams: (0,100,2)
+}
+
+edges_test, costs1_test, ds_test = gametable._random_graph_distances(graphspecs_test)
+D_in = int((nnodes+1)**2)
+D_out = 1
+
+environment_test = {
+    EnvSpecs.type : EnvType.tsp,
+    EnvSpecs.statusdimension : D_in,
+    EnvSpecs.actiondimension : nedges,
+    EnvSpecs.rewardimension : D_out,
+    EnvSpecs.edges : edges_test.copy(),
+    EnvSpecs.costs : costs1_test.copy(),
+    EnvSpecs.prize : 1,
+    EnvSpecs.penalty : 0,
+    EnvSpecs.finalpoint : nnodes-1,
+    EnvSpecs.startingpoint : 0
+}
+
+
+#test_stats_ppg = algo_ppg.Test_Policy(actor,critic,0,environment_test)
+#actor_ppo,critic_ppo = algo_ppo.load_models(path,file_name)
+#actor_ppo, critic_ppo = algo_ppo.load_models(path,file_name)
+#test_stats_ppo,times_ppo = algo_ppo.Test_Policy(actor_ppo,critic_ppo,0,environment_test)
+test_aaa = baseline_ortools(dis_m=costs1_test,n=nnodes)
+opt_test, time_test, out_test = test_aaa.solve_ortools()
+
+#gtt = grafico_test(opt_test,test_stats_ppo)
+#print('media',sum(gtt)/len(gtt))
+#print('tempi:',max(time_test)/min(times_ppo))
+
 

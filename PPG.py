@@ -58,7 +58,7 @@ class ppg():
             self.policy_phase_buffer = PPG_data_manager_NO_GCN(stacklenght=self.Buffer.stacklenght)
 
 
-    def perform_rollouts(self,policy,s0,m0,threshold):
+    def perform_rollouts(self,policy,s0,m0,threshold,greedy=False):
         rewards = []
         states = []
         pred_values = []
@@ -97,6 +97,9 @@ class ppg():
                 act_ind = random.randint(0,len(action_probs)-1)
             else:
                 act_ind = dist_act_prob.sample().item()
+                if greedy:
+                    print('MIAOOOOOOO')
+                    act_ind = torch.argmax(action_probs).item()
             #print('act_ind',act_ind)
             actions_ind_list.append(act_ind)
             act = mt[act_ind]
@@ -115,7 +118,7 @@ class ppg():
             return rew, pol_probs, states, mask_list, cum_rew, action_list, actions_ind_list
 
 
-    def policy_rollout(self,s0,m0,rep,cp,crr,threshold):
+    def policy_rollout(self,s0,m0,rep,cp,crr,threshold,greedy=False):
         self.env.set_instance(rep)
         if self.GCNflag:
             B = {'state': [], 'actions_probs': [], 'advantages': [], 'values': [], 'masks': [], 'actions': [],
@@ -123,7 +126,7 @@ class ppg():
             rew, pol_probs, states,masks, cum_rew, action_list, actions_ind_list, eil, fl, eal = self.perform_rollouts(cp, s0, m0,threshold)
         else:
             B = {'state': [], 'actions_probs': [], 'advantages': [], 'values': [], 'masks': [], 'actions': [],'actions_ind': []}
-            rew, pol_probs, states, masks, cum_rew, action_list, actions_ind_list = self.perform_rollouts(cp, s0, m0, threshold)
+            rew, pol_probs, states, masks, cum_rew, action_list, actions_ind_list = self.perform_rollouts(cp, s0, m0, threshold,greedy)
         cr = cum_rew.copy()
         cr.reverse()
         V_target_list = cr
@@ -180,7 +183,7 @@ class ppg():
         current_critic = copy.deepcopy(self.ACmodel.critic)
         Loss_actor_stats, Loss_critic_stats = [], []
         for it in range(self.policy_iterations):
-            #print('Policy iteration n.',it+1)
+            print('Policy iteration n.',it+1)
             self.ACmodel.set_optim()
             self.ACmodel.set_loss()
             it_rew_stats_list = []
@@ -193,8 +196,8 @@ class ppg():
                     rep_rew_stats_list.append(cum_rew[-1])
                     rewards_general_stats += [cum_rew[-1]]
                 it_rew_stats_list.append(rep_rew_stats_list)
-            #print(cum_rew_stats_list)
-            #print('Average cum_reward: ',sum(cum_rew_stats_list)/len(cum_rew_stats_list))
+            rrr = [sum(kk)/len(kk) for kk in it_rew_stats_list]
+            print('Average cum_reward on all repetitions: ',sum(rrr)/len(rrr))
             for epoch in range(self.E_policy):
                 #print('Epoch n. ',epoch+1)
                 Ls = [] #Loss actor
@@ -280,7 +283,8 @@ class ppg():
 
         return self.ACmodel.actor,self.ACmodel.critic,self.Buffer,phase_rew_stats,Loss_actor_stats,Loss_critic_stats,Loss_joint_stats,Loss_aux_stats,rewards_general_stats
 
-    def PPG_algo(self,envspecs):
+    def PPG_algo(self,envspecs,file_name,threshold):
+        path = '\\Users\corra\OneDrive\Desktop\Tesi\ModelliSalvati'
         self.buildenvironment(envspecs)
         s0 = self.env.initial_state()
         m0 = self.env.initial_mask(s0)
@@ -290,7 +294,6 @@ class ppg():
         stats_critic_loss = []
         stats_loss_joint = []
         stats_loss_aux = []
-        threshold = 0.25
         for phase in range(self.phases):
             print('Inizio fase n. {} di {}'.format(phase+1,self.phases))
             actor,critic,current_buffer,rew_stats,Loss_actor_stats,Loss_critic_stats,Loss_joint_stats,Loss_aux_stats,rgs = self.PPG_phase(threshold)
@@ -316,24 +319,68 @@ class ppg():
             avgr = sum(average)/len(average)
             mr = sum(best)/len(best)
             print('Avg rew: {}, Max rew: {}, Loss actor: {:.2f}, Loss critic: {:.2f}, Loss Joint: {:.2f}'.format(avgr,mr,lact,lcri,jjj))
-            self.Buffer.restart()
-            if phase > self.phases/4:
-                threshold = 0.1
-            if phase > self.phases/2:
-                threshold = 0
+            modelpath_policy = path + file_name[0]
+            modelpath_value = path + file_name[1]
 
+            torch.save({
+                'episode': phase+1,
+                'model_state_dict': self.ACmodel.actor.state_dict(),
+                'optimizer_state_dict': self.ACmodel.opt_actor.state_dict(),
+                'loss': lact,
+            }, modelpath_policy)
+
+            torch.save({
+                'episode': phase + 1,
+                'model_state_dict': self.ACmodel.critic.state_dict(),
+                'optimizer_state_dict': self.ACmodel.opt_critic.state_dict(),
+                'loss': lcri,
+            }, modelpath_value)
+            self.Buffer.restart()
+            if phase > self.phases/3:
+                threshold = 0.1
+            if phase > 2*self.phases/3:
+                threshold = 0
             print('\n')
 
         return self.ACmodel.actor,self.ACmodel.critic,stats_reward,stats_actor_loss,stats_critic_loss,stats_loss_joint,stats_loss_aux,rgs
 
-    def Test_Policy(self,actor,critic,threshold):
+    def Test_Policy(self,actor,critic,threshold,tenv,num_rollouts=10,greedy=False):
+        self.buildenvironment(tenv)
         s0 = self.env.initial_state()
         m0 = self.env.initial_mask(s0)
         stats = []
-        for rep in range(self.env.repetitions,3*self.env.repetitions):
-            B,cum_rew = self.policy_rollout(s0,m0,rep,actor,critic,threshold)
-            stats.append(cum_rew)
+        for rep in range(self.env.repetitions):
+            rep_stats = []
+            if greedy==False:
+                for h in range(num_rollouts):
+                    B,cum_rew = self.policy_rollout(s0,m0,rep,actor,critic,threshold)
+                    rep_stats.append(cum_rew[-1])
+                stats.append(rep_stats)
+            else:
+                B, cum_rew = self.policy_rollout(s0, m0, rep, actor, critic, threshold,greedy)
+                stats.append(cum_rew[-1])
+
         return stats
+
+    def load_models(self, path, file_name, nep_model=None, test_flag=False):
+        modelpath_policy = path + file_name[0]
+        modelpath_value = path + file_name[1]
+
+        checkpoint = torch.load(modelpath_policy)
+        self.ACmodel.actor.load_state_dict(checkpoint['model_state_dict'])
+        self.ACmodel.opt_actor.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        checkpoint = torch.load(modelpath_value)
+        self.ACmodel.critic.load_state_dict(checkpoint['model_state_dict'])
+        self.ACmodel.opt_critic.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        if test_flag:
+            self.ACmodel.actor.eval()
+            self.ACmodel.critic.eval()
+        else:
+            self.ACmodel.actor.train()
+            self.ACmodel.critic.train()
+        return self.ACmodel.actor,self.ACmodel.critic
 
 
 

@@ -6,6 +6,7 @@ import copy
 import random
 import torch
 from support import build_index,build_features,build_attr
+import time
 
 class ppo():
 
@@ -28,6 +29,8 @@ class ppo():
         self.specsActor = specsActor
         self.specsCritic = specsCritic
         self.ACmodel = PPO_Model(specsActor,specsCritic,GCNflag=self.GCNflag,device=self.device)
+        self.ACmodel.set_loss()
+        self.ACmodel.set_optim()
 
     def buildenvironment(self,envspecs):
         self.env = tsp(envspecs)
@@ -37,7 +40,7 @@ class ppo():
         else:
             self.Buffer = PPG_data_manager_NO_GCN(stacklenght=50000)
 
-    def perform_rollouts(self,policy,s0,m0,threshold):
+    def perform_rollouts(self,policy,s0,m0,threshold,greedy=False):
         rewards = []
         states = []
         pred_values = []
@@ -74,6 +77,8 @@ class ppo():
                 #print(act_ind)
             else:
                 act_ind = dist_act_prob.sample().item()
+            if greedy:
+                act_ind = torch.argmax(action_probs).item()
             actions_ind_list.append(act_ind)
             act = mt[act_ind]
             action_list.append(act)
@@ -90,7 +95,7 @@ class ppo():
         else:
             return rew, pol_probs, states, mask_list, cum_rew, action_list, actions_ind_list
 
-    def policy_rollout(self,s0,m0,rep,cp,crr,threshold):
+    def policy_rollout(self,s0,m0,rep,cp,crr,threshold,greedy=False):
         self.env.set_instance(rep)
         if self.GCNflag:
             B = {'state': [], 'actions_probs': [], 'advantages':[],'values':[],'masks':[],'actions':[],'actions_ind':[],
@@ -98,7 +103,7 @@ class ppo():
             rew, pol_probs, states, masks, cum_rew, action_list, actions_ind_list, eil, fl, eal = self.perform_rollouts(cp, s0, m0, threshold)
         else:
             B = {'state': [], 'actions_probs': [], 'advantages': [], 'values': [], 'masks': [], 'actions': [],'actions_ind': []}
-            rew, pol_probs, states, masks, cum_rew, action_list, actions_ind_list = self.perform_rollouts(cp, s0, m0, threshold)
+            rew, pol_probs, states, masks, cum_rew, action_list, actions_ind_list = self.perform_rollouts(cp, s0, m0, threshold,greedy)
 
         cr = cum_rew.copy()
         cr.reverse()
@@ -143,7 +148,8 @@ class ppo():
                 B['edge_attr_list'].append(eal[k])
         return B,cum_rew
 
-    def ppo_algo(self,envspecs,threshold):
+    def ppo_algo(self,envspecs,threshold,file_name):
+        path = '\\Users\corra\OneDrive\Desktop\Tesi\ModelliSalvati'
         self.buildenvironment(envspecs)
         s0 = self.env.initial_state()
         m0 = self.env.initial_mask(s0)
@@ -152,9 +158,9 @@ class ppo():
         stats_loss_actor = []
         stats_loss_critic = []
         for i in range(self.nit):
-            if i>= self.nit/3:
+            if i>= 1700:
                 threshold = 0.1
-            if i>= 2*self.nit/3:
+            if i>= 3800:
                 threshold = 0
             print('Inizio iterazione {} di {}'.format(i+1,self.nit))
             current_policy = copy.deepcopy(self.ACmodel.actor)
@@ -178,8 +184,8 @@ class ppo():
 
             Loss_Actor_Stats = []
             Loss_Critic_Stats = []
-            self.ACmodel.set_loss()
-            self.ACmodel.set_optim()
+            #self.ACmodel.set_loss()
+            #self.ACmodel.set_optim()
             for epoch in range(self.epochs):
                 print('Epoch n. {} di {}'.format(epoch+1,self.epochs))
                 la,lc = [],[]
@@ -216,9 +222,70 @@ class ppo():
 
             stats_loss_actor.append(Loss_Actor_Stats)
             stats_loss_critic.append(Loss_Critic_Stats)
+            modelpath_policy = path + file_name[0]
+            modelpath_value = path + file_name[1]
+
+            torch.save({
+                'episode': i+1,
+                'model_state_dict': self.ACmodel.actor.state_dict(),
+                'optimizer_state_dict': self.ACmodel.opt_actor.state_dict(),
+                'loss': Loss_Actor_Stats[-1],
+            }, modelpath_policy)
+
+            torch.save({
+                'episode': i + 1,
+                'model_state_dict': self.ACmodel.critic.state_dict(),
+                'optimizer_state_dict': self.ACmodel.opt_critic.state_dict(),
+                'loss': Loss_Critic_Stats[-1],
+            }, modelpath_value)
             self.Buffer.restart()
 
-        return stats_loss_actor,stats_loss_critic,stats_reward
+        return stats_loss_actor,stats_loss_critic,stats_reward, self.ACmodel.actor, self.ACmodel.critic
+
+    def Test_Policy(self, actor, critic, threshold, tenv, num_rollouts=10, greedy=False):
+        self.buildenvironment(tenv)
+        s0 = self.env.initial_state()
+        m0 = self.env.initial_mask(s0)
+        stats = []
+        times = []
+        for rep in range(self.env.repetitions):
+            rep_stats = []
+            if greedy==False:
+                for h in range(num_rollouts):
+                    t1 = time.time()
+                    B, cum_rew = self.policy_rollout(s0, m0, rep, actor, critic, threshold)
+                    t2 = time.time()
+                    rep_stats.append(cum_rew[-1])
+                    if h==0:
+                        times.append(t2-t1)
+                stats.append(rep_stats)
+            else:
+                B, cum_rew = self.policy_rollout(s0, m0, rep, actor, critic, threshold, greedy)
+                stats.append(cum_rew[-1])
+
+        return stats,times
+
+    def load_models(self, path, file_name, nep_model=None, test_flag=False):
+        modelpath_policy = path + file_name[0]
+        modelpath_value = path + file_name[1]
+
+        checkpoint = torch.load(modelpath_policy)
+        self.ACmodel.actor.load_state_dict(checkpoint['model_state_dict'])
+        self.ACmodel.opt_actor.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        checkpoint = torch.load(modelpath_value)
+        self.ACmodel.critic.load_state_dict(checkpoint['model_state_dict'])
+        self.ACmodel.opt_critic.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        if test_flag:
+            self.ACmodel.actor.eval()
+            self.ACmodel.critic.eval()
+        else:
+            self.ACmodel.actor.train()
+            self.ACmodel.critic.train()
+
+        return self.ACmodel.actor,self.ACmodel.critic
+
 
 
 
