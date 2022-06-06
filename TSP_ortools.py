@@ -72,7 +72,7 @@ def genera_Dataset(num_nodi, num_grafi):
     dataset = []
     for j in range(num_grafi):
         # print('Creo problema {} di {}'.format(j+1,num_grafi))
-        data_j = crea_problema(num_nodi)
+        data_j = crea_problema(num_nodi,0,100)
         sol, man, rout = risolvi_problema(num_nodi, data_j)
         fob = float(sol.ObjectiveValue())
         mat_dist = data_j['distance_matrix']
@@ -116,18 +116,25 @@ class Net(nn.Module):
     def __init__(self, n_nodi):
         super(Net, self).__init__()
         self.n_nodi = n_nodi
-        self.conv1 = nn.Conv2d(1, 1, 5, stride=1, padding=0)  # n-5+1 => (n-4)
-        self.conv2 = nn.Conv2d(1, 1, 5, stride=1, padding=0)  # 12
-        self.fc1 = nn.Linear(12, 30)
+        self.conv1 = nn.Conv2d(1, 10, 3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(10, 10, 3, stride=1, padding=1)
+        self.conv3 = nn.Conv2d(10, 1, 3, stride=1, padding=1)
+        self.fc1 = nn.Linear(self.n_nodi, 30)
         self.fc2 = nn.Linear(30, 1)
 
     def forward(self, x, n_nodi):
+        bs = x.shape[0]
         x = x.float()
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
-        x = x.view(-1, 12)
+        x = F.relu(self.conv3(x))
+        x = x.view(bs,self.n_nodi,self.n_nodi)
+        x = torch.mean(x,2)
+        #print(x.shape)
         x = F.relu(self.fc1(x))
+        #print(x.shape)
         x = self.fc2(x)
+        #print(x.shape)
         return x
 
 
@@ -152,40 +159,39 @@ def train(epochs, tl, optim, lossf, n_nodi, test_loader):
     l_test = []
     for j in range(epochs):
         loss = epoch(tl, optim, lossf, n_nodi)
-        if (j) % 25==0:
+        if (j) % 1==0:
             print('Epoch:{}   Loss:{:.4f}'.format(j, loss))
-            loss_t = test_error(test_loader, lossf)
+            loss_t, data = test_error(test_loader, lossf)
             print('Test_error: {}'.format(loss_t))
             l_train.append(loss)
             l_test.append(loss_t)
-    return l_train, l_test
+    return l_train, l_test, data
 
 
 def test_error(test_loader, loss_fun):
     l = []
+    data = []
     for x, y in test_loader:
         x, y = x.float(), y.float()
         out = net(x, 20)
         l.append(loss_fun(out, y).item())
-    return sum(l) / len(l)
+        data.append((out.item(),y.item()))
+    return sum(l) / len(l), data
 
-
-# n_nodi = 100
-# train(1000,trainloader,opt,loss_fun,n_nodi)
-'''
-dataset = genera_Dataset(20,1000)
+n_nodi = 75
+n_epochs = 25
+bs = 32
+dataset = torch.load("miao.pt")#genera_Dataset(n_nodi,1000)
 trainset, testset = split(0.2,dataset)
-trainloader = torch.utils.data.DataLoader(trainset,16)
+trainloader = torch.utils.data.DataLoader(trainset,bs)
 testloader = torch.utils.data.DataLoader(testset,1)
 loss_fun = F.mse_loss
-n_nodi = 20
-net = Net(n_nodi=20)
-opt = torch.optim.Adam(net.parameters(),lr=0.5)
-l_train, l_test = train(5000,trainloader,opt,loss_fun,n_nodi,testloader)
+net = Net(n_nodi=n_nodi)
+opt = torch.optim.Adam(net.parameters(),lr=1e-3)
+l_train, l_test, data = train(n_epochs,trainloader,opt,loss_fun,n_nodi,testloader)
 
 import matplotlib.pyplot as plt
 l1,l2 = np.array(l_train,dtype=float), np.array(l_test,dtype=float)
-plt.plot(l1[20:])
-plt.plot(l2[20:])
+plt.plot(l1)
+plt.plot(l2)
 plt.show()        
-'''
